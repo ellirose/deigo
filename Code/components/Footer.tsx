@@ -14,8 +14,7 @@ export default function Footer() {
       <CalcadaoWave className="h-[84px] lg:h-[110px]" />
       <div className="relative overflow-hidden bg-mata pb-10 pt-14 text-sand lg:pt-20">
         {/* A low sun cresting over the footer edge */}
-        <div aria-hidden className="pointer-events-none absolute -top-[300px] hidden sm:block right-[8%] size-[380px] rounded-full bg-sol" />
-        <div aria-hidden className="pointer-events-none absolute -top-[300px] hidden sm:block right-[8%] size-[380px] rounded-full border-[1.5px] border-sand/40 [scale:1.22]" />
+        <div aria-hidden className="pointer-events-none absolute -top-[318px] hidden sm:block right-[8%] size-[380px] rounded-full bg-sol" />
 
         <div className="relative mx-auto max-w-[1480px] px-5 sm:px-8 lg:px-12">
           <div className="grid gap-12 lg:grid-cols-12">
@@ -58,7 +57,7 @@ export default function Footer() {
           </div>
 
           {/* Oversized wordmark */}
-          <p aria-hidden data-reveal="clip" className="mt-16 select-none whitespace-nowrap font-display text-[clamp(3.6rem,14.2vw,15.5rem)] font-extrabold leading-[.82] tracking-[-0.055em] text-sand">
+          <p aria-hidden data-reveal className="mt-16 select-none whitespace-nowrap pb-[.14em] font-display text-[min(calc((100vw-7rem)/6.4),14rem)] font-extrabold leading-[.9] tracking-[-0.055em] text-sand">
             Diego<span className="text-sol">.</span>Silveira
           </p>
 

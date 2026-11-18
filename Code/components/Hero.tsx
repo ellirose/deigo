@@ -28,11 +28,13 @@ export default function Hero() {
         <div className="lg:col-span-7 lg:self-center">
           <p data-reveal className="inline-flex items-center gap-2.5 rounded-full bg-paper/90 py-1.5 pl-1.5 pr-4 text-[12px] font-extrabold uppercase tracking-[.18em] shadow-soft ring-1 ring-line sm:text-[13px]">
             <Flag code="pt" className="size-7" />
-            <span>{t.hero.eyebrow.split(" · ")[0]}</span>
-            <span className="hidden sm:inline">· {t.hero.eyebrow.split(" · ")[1]}</span>
+            <span>
+              {t.hero.eyebrow.split(" · ")[0]}
+              <span className="hidden sm:inline"> · {t.hero.eyebrow.split(" · ")[1]}</span>
+            </span>
           </p>
 
-          <h1 className="mt-6 font-display text-[clamp(2.5rem,5.9vw,6.6rem)] font-extrabold leading-[.93] tracking-[-0.04em]">
+          <h1 className="mt-6 font-display text-[clamp(2.5rem,5.9vw,6.6rem)] lg:text-[clamp(3rem,min(5.5vw,9.2svh),6.6rem)] font-extrabold leading-[.93] tracking-[-0.04em]">
             <span data-reveal className="block text-balance" style={delay(80)}>
               {t.hero.line1}
             </span>
@@ -64,7 +66,7 @@ export default function Hero() {
             </a>
           </div>
 
-          <div data-reveal style={delay(460)} className="mt-10 hidden items-center gap-4 lg:flex">
+          <div data-reveal style={delay(460)} className="hero-tall-only mt-10 hidden items-center gap-4 lg:flex">
             <div className="flex -space-x-2">
               {(["code", "pen", "play"] as const).map((n, i) => (
                 <span
