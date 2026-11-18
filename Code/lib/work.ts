@@ -27,6 +27,7 @@ const ITEMS: WorkItem[] = [
   W("web", "web-design", "glowcare-beauty-ecommerce", 736, 1104, T("GlowCare — beauty e-commerce", "GlowCare — e-commerce de beleza", "GlowCare — e-commerce de belleza")),
   W("web", "web-design", "pilates-era-yoga-studio", 736, 1252, T("Pilates Era — yoga studio", "Pilates Era — estúdio de yoga", "Pilates Era — estudio de yoga")),
   W("web", "web-design", "china-study-education-site", 736, 1308, T("Study in China — education agency", "Estudar na China — agência educacional", "Estudiar en China — agencia educativa")),
+  W("web", "web-design", "tidepool-travel-site", 736, 1308, T("Tidepool — travel website", "Tidepool — site de viagens", "Tidepool — sitio de viajes")),
   W("web", "dashboard-design", "factory-monitor-dashboard", 736, 414, T("Factory Monitor — IoT dashboard", "Factory Monitor — painel IoT", "Factory Monitor — panel IoT")),
 
   W("app", "mobile-app-design", "techhub-electronics-app", 736, 1104, T("TechHub — electronics app", "TechHub — app de eletrônicos", "TechHub — app de electrónica")),
@@ -38,12 +39,16 @@ const ITEMS: WorkItem[] = [
   W("brand", "branding-typography", "glow-3d-fluffy-lettering", 736, 736, T("Glow — 3D lettering", "Glow — lettering 3D", "Glow — lettering 3D")),
   W("brand", "branding-typography", "a-monogram-03-construction-grid", 736, 734, T("Monogram construction grid", "Grade de construção do monograma", "Retícula de construcción del monograma")),
   W("brand", "branding-typography", "a-monogram-06-interlocked-variant", 736, 736, T("Interlocked mark", "Marca entrelaçada", "Marca entrelazada")),
+  W("brand", "branding-typography", "a-monogram-01-sketch-explorations", 719, 694, T("Monogram sketch explorations", "Explorações do monograma", "Exploraciones del monograma")),
+  W("brand", "branding-typography", "a-monogram-02-pencil-sketch", 736, 981, T("Monogram pencil study", "Estudo a lápis do monograma", "Estudio a lápiz del monograma")),
+  W("brand", "branding-typography", "a-monogram-05-app-icon", 720, 1280, T("Monogram app icon", "Ícone de app do monograma", "Ícono de app del monograma")),
 
   W("poster", "posters-social-media", "bmw-m4-gt3-poster", 736, 1307, T("BMW M4 GT3 — poster concept", "BMW M4 GT3 — conceito de pôster", "BMW M4 GT3 — concepto de póster")),
   W("poster", "posters-social-media", "stay-with-me-editorial-poster", 736, 1105, T("Stay With Me — editorial poster", "Stay With Me — pôster editorial", "Stay With Me — póster editorial")),
   W("poster", "posters-social-media", "f1-car-blueprint-poster", 736, 1308, T("F1 blueprint poster", "Pôster blueprint F1", "Póster blueprint F1")),
   W("poster", "posters-social-media", "all-about-me-social-collage", 736, 1308, T("All About Me — social collage", "All About Me — colagem social", "All About Me — collage social")),
   W("poster", "posters-social-media", "race-car-95-sketch-poster", 736, 1312, T("Race car sketch poster", "Pôster sketch de carro de corrida", "Póster boceto de auto de carreras")),
+  W("poster", "posters-social-media", "summer-dreams-editorial-poster", 736, 1226, T("Summer Dreams — editorial poster", "Summer Dreams — pôster editorial", "Summer Dreams — póster editorial")),
 
   W("illustration", "illustration", "rio-de-janeiro-3d-map", 736, 922, T("Rio de Janeiro — 3D map", "Rio de Janeiro — mapa 3D", "Río de Janeiro — mapa 3D")),
   W("illustration", "illustration", "aura-character-sheet", 720, 756, T("Aura — character sheet", "Aura — ficha de personagem", "Aura — hoja de personaje")),
