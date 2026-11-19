@@ -4,14 +4,16 @@ import { useEffect, useRef, type MutableRefObject, type RefObject } from "react"
 import type { Cat, WorkItem } from "@/lib/work";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   PaperStage — every project is printed on a sheet of paper. Each sheet leaves the
-   stack with a technique that suits its discipline: brand marks fold into paper
-   planes, posters turn like magazine pages, web prints tear apart, apps dissolve
-   into pixels, illustrations flip as 3D shutters, uniforms fold like garments.
-   Everything is real geometry: textured polygons projected with perspective.
+   PaperStage — every project is printed on a sheet of paper, and each sheet leaves
+   the stack with a technique that suits its discipline: brand marks dissolve into
+   stardust that swirls and re-forms as the next print, posters turn like glossy
+   magazine pages, web prints tear apart, apps drift away as glittering dust,
+   illustrations flip as 3D shutters, styling looks ripple over as a mosaic and
+   uniforms burst into shards. Everything is real geometry: textured polygons and
+   particles projected with perspective, lit with a soft diffuse + specular model.
    ───────────────────────────────────────────────────────────────────────────── */
 
-export type Technique = "plane" | "pageTurn" | "tear" | "particles" | "strips" | "fold" | "fade";
+export type Technique = "pageTurn" | "tear" | "particles" | "strips" | "reform" | "shatter" | "mosaic" | "fade";
 export type StageHandle = { next: () => void; prev: () => void; setPaused: (p: boolean) => void };
 
 export function techniqueFor(item: WorkItem, index: number): Technique {
@@ -21,20 +23,23 @@ export function techniqueFor(item: WorkItem, index: number): Technique {
     case "app":
       return "particles";
     case "brand":
-      return "plane";
+      return "reform";
     case "poster":
-    case "fashion":
       return "pageTurn";
     case "illustration":
       return "strips";
+    case "fashion":
+      return "mosaic";
     case "apparel":
-      return (["fold", "plane", "particles"] as const)[index % 3];
+      return (["mosaic", "shatter", "strips", "particles"] as const)[index % 4];
   }
 }
 
 const HOLD = 3.2;
-const DUR: Record<Technique, number> = { plane: 4.8, pageTurn: 2.2, tear: 2.4, particles: 2.9, strips: 2.3, fold: 3.3, fade: 1.2 };
-const SETTLE_AT: Record<Technique, number> = { plane: 0.12, pageTurn: 0.12, tear: 0.22, particles: 0.06, strips: 0, fold: 0.18, fade: 0 };
+const DUR: Record<Technique, number> = { pageTurn: 2.4, tear: 2.6, particles: 3.6, strips: 2.4, reform: 3.8, shatter: 2.8, mosaic: 2.7, fade: 1.2 };
+const SETTLE_AT: Record<Technique, number> = { pageTurn: 0.12, tear: 0.22, particles: 0.06, strips: 0, reform: 0, shatter: 0.14, mosaic: 0, fade: 0 };
+/** Techniques whose outgoing sheet reveals the next print itself (so the stack must not draw it). */
+const SELF_REVEAL: Partial<Record<Technique, true>> = { strips: true, reform: true, mosaic: true };
 const FOCAL = 1700;
 const PAPER = "#FFFDF8";
 const CAT_CODE: Record<Cat, string> = {
@@ -46,21 +51,28 @@ const CAT_CODE: Record<Cat, string> = {
   apparel: "UNIFORM",
   fashion: "STYLING",
 };
+const SUB = [
+  [0.3, 0.3],
+  [0.7, 0.3],
+  [0.3, 0.7],
+  [0.7, 0.7],
+];
 
 type P3 = [number, number, number];
 type UV = [number, number];
 type V = { x: number; y: number; u: number; v: number };
-type Line = { px: number; py: number; dx: number; dy: number; fs: number };
-type Piece = { pts: V[]; layer: number; tag: number };
 type Pose = { x: number; y: number; z: number; rz: number; s: number };
 type Tex = HTMLCanvasElement;
 type Face = { world: P3[]; uv: UV[]; uvBack?: UV[] };
+type Grid = { cols: number; rows: number; cs: number; csy: number; count: number; x: Float32Array; y: Float32Array; rgb: Uint8ClampedArray };
 
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const eio = (x: number) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const ein = (x: number) => x * x * x;
+const eout = (x: number) => 1 - Math.pow(1 - x, 3);
 const seg = (p: number, a: number, b: number) => clamp01((p - a) / (b - a));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const lerpPose = (a: Pose, b: Pose, t: number): Pose => ({
   x: lerp(a.x, b.x, t),
   y: lerp(a.y, b.y, t),
@@ -68,8 +80,34 @@ const lerpPose = (a: Pose, b: Pose, t: number): Pose => ({
   rz: lerp(a.rz, b.rz, t),
   s: lerp(a.s, b.s, t),
 });
+/** Twinkle: mostly dim with short bright flashes. */
+const twinkle = (t: number, ph: number) => 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin(t * 11 + ph), 3);
 
-/* ---------- 2D fold geometry (pure) ---------- */
+/* ---------- colour helpers (pure) ---------- */
+
+/** 0 = neutral (gets a sun-gold glint), 1–12 = hue buckets of 30°. */
+function hueBucket(r: number, g: number, b: number) {
+  const mx = Math.max(r, g, b);
+  const mn = Math.min(r, g, b);
+  const d = mx - mn;
+  if (d < 38 || mx + mn > 470) return 0;
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  return 1 + (Math.round(h / 30) % 12);
+}
+
+function hslRgb(h: number, s: number, l: number) {
+  s /= 100;
+  l /= 100;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return Math.round((l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) * 255);
+  };
+  return `${f(0)},${f(8)},${f(4)}`;
+}
+
+/* ---------- 2D geometry (pure) ---------- */
 
 function area2(pts: { x: number; y: number }[]) {
   let a = 0;
@@ -85,7 +123,7 @@ function lerpV(a: V, b: V, t: number): V {
   return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), u: lerp(a.u, b.u, t), v: lerp(a.v, b.v, t) };
 }
 
-/** Splits a polygon by a line; returns [side ≥ 0, side ≤ 0]. */
+/** Splits a convex polygon by a line; returns [side ≥ 0, side ≤ 0]. */
 function split(poly: V[], L: { px: number; py: number; dx: number; dy: number }): [V[], V[]] {
   const side = (q: V) => L.dx * (q.y - L.py) - L.dy * (q.x - L.px);
   const A: V[] = [];
@@ -106,60 +144,12 @@ function split(poly: V[], L: { px: number; py: number; dx: number; dy: number })
   return [A, B];
 }
 
-function makeLine(px: number, py: number, qx: number, qy: number, sx: number, sy: number): Line {
-  let dx = qx - px;
-  let dy = qy - py;
-  const l = Math.hypot(dx, dy) || 1;
-  dx /= l;
-  dy /= l;
-  return { px, py, dx, dy, fs: Math.sign(dx * (sy - py) - dy * (sx - px)) || 1 };
-}
-
-function reflect(q: V, L: Line): V {
-  const nx = -L.dy;
-  const ny = L.dx;
-  const d = (q.x - L.px) * nx + (q.y - L.py) * ny;
-  return { x: q.x - 2 * d * nx, y: q.y - 2 * d * ny, u: q.u, v: q.v };
-}
-
-/** Splits pieces by the step's fold lines, tags the moving side, and bakes the flat result. */
-function bakeStep(pieces: Piece[], lines: Line[]) {
-  let curr: Piece[] = pieces.map((p) => ({ ...p, tag: -1 }));
-  lines.forEach((L, li) => {
-    const out: Piece[] = [];
-    for (const pc of curr) {
-      if (pc.tag !== -1) {
-        out.push(pc);
-        continue;
-      }
-      const [A, B] = split(pc.pts, L);
-      const foldPts = L.fs > 0 ? A : B;
-      const keepPts = L.fs > 0 ? B : A;
-      if (Math.abs(area2(foldPts)) > 0.5) out.push({ pts: foldPts, layer: pc.layer, tag: li });
-      if (Math.abs(area2(keepPts)) > 0.5) out.push({ pts: keepPts, layer: pc.layer, tag: -1 });
-    }
-    curr = out;
-  });
-  const maxL = Math.max(...curr.map((p) => p.layer));
-  const baked: Piece[] = curr.map((pc) => {
-    if (pc.tag === -1) return { pts: pc.pts, layer: pc.layer, tag: -1 };
-    const L = lines[pc.tag];
-    const gMax = Math.max(...curr.filter((q) => q.tag === pc.tag).map((q) => q.layer));
-    return { pts: pc.pts.map((q) => reflect(q, L)), layer: maxL + 1 + (gMax - pc.layer), tag: -1 };
-  });
-  return { tagged: curr, lines, baked };
-}
-
-/** Rotates a point on the fold side about the line, lifting it toward the camera. */
-function foldPoint(q: V, L: Line, phi: number, z0: number): P3 {
-  const nx = -L.dy * L.fs;
-  const ny = L.dx * L.fs;
-  const rx = q.x - L.px;
-  const ry = q.y - L.py;
-  const a = rx * L.dx + ry * L.dy;
-  const b = rx * nx + ry * ny;
-  const c = Math.cos(phi);
-  return [L.px + a * L.dx + b * c * nx, L.py + a * L.dy + b * c * ny, z0 - b * Math.sin(phi)];
+/** Rotates (x, y, z) about the unit axis k by angle a (Rodrigues). */
+function rotAxis(x: number, y: number, z: number, kx: number, ky: number, kz: number, a: number): P3 {
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  const d = (kx * x + ky * y + kz * z) * (1 - c);
+  return [x * c + (ky * z - kz * y) * s + kx * d, y * c + (kz * x - kx * z) * s + ky * d, z * c + (kx * y - ky * x) * s + kz * d];
 }
 
 /* ───────────────────────────── Component ───────────────────────────── */
@@ -206,6 +196,7 @@ export default function PaperStage({
     const texCache = new Map<number, Tex>();
     let backTex: Tex | null = null;
     let shadowSprite: { c: HTMLCanvasElement; pad: number } | null = null;
+    let sparkSprites: HTMLCanvasElement[] | null = null;
 
     let cur = 0;
     let phase: "hold" | "trans" = "hold";
@@ -220,26 +211,56 @@ export default function PaperStage({
     let cxR = 1;
     let sxR = 0;
 
-    // per-transition data
+    /* ---------- per-transition data ---------- */
     let pose0: Pose = { x: 0, y: 0, z: 0, rz: 0, s: 1 };
-    let tear: { jag: { x: number; y: number }[]; left: V[]; right: V[]; pv: { x: number; y: number } } | null = null;
-    let part: {
-      count: number;
-      x0: Float32Array;
-      y0: Float32Array;
+    let tear: {
+      jag: { x: number; y: number }[];
+      left: V[];
+      right: V[];
+      pv: { x: number; y: number };
+      flecks: { x: number; y: number; vx: number; vy: number; vz: number; b: number; s: number; rot: number; spin: number; col: string; spark: number }[];
+    } | null = null;
+    let dust: {
+      g: Grid;
       t0: Float32Array;
-      vx: Float32Array;
-      vy: Float32Array;
-      vz: Float32Array;
-      ph: Float32Array;
       life: Float32Array;
+      rho0: Float32Array;
+      th0: Float32Array;
+      ph: Float32Array;
+      spark: Uint8Array;
       col: string[];
       rowNoise: Float32Array;
-      rows: number;
-      cs: number;
+      vcx: number;
+      vcy: number;
     } | null = null;
-    let fold: { steps: ReturnType<typeof bakeStep>[]; final: Piece[]; regions: number[]; wx: number } | null = null;
+    let reform: {
+      g: Grid;
+      tx: Float32Array;
+      ty: Float32Array;
+      d: Float32Array;
+      R: Float32Array;
+      ang: Float32Array;
+      spin: Float32Array;
+      yb: Float32Array;
+      ph: Float32Array;
+      spark: Uint8Array;
+      col: string[];
+      K: number;
+    } | null = null;
+    let shards: {
+      list: { pts: V[]; cx: number; cy: number; dx: number; dy: number; vx: number; vy: number; vz: number; kx: number; ky: number; kz: number; om: number; delay: number }[];
+      ix: number;
+      iy: number;
+      bits: { x: number; y: number; vx: number; vy: number; vz: number; life: number; s: number; col: string; delay: number }[];
+      sparks: { vx: number; vy: number; vz: number; life: number; s: number; hue: number; ph: number }[];
+      hue: number;
+    } | null = null;
+    let tiles: {
+      list: { cx: number; cy: number; hw: number; hh: number; ua: number; ub: number; va: number; vb: number; d: number; vert: boolean; sgn: number; spark: boolean }[];
+    } | null = null;
+    let page: { dust: { b: number; v: number; vx: number; vy: number; vz: number; life: number; s: number; ph: number; hue: number }[] } | null = null;
 
+    const dbg: { p: number | null; tech: Technique | null } = { p: null, tech: null };
     const idx = (k: number) => ((k % n) + n) % n;
     // The paper techniques are the showcase itself (and can be paused), so they always run;
     // reduced-motion only removes the ambient float/tilt and slows the pace.
@@ -308,7 +329,7 @@ export default function PaperStage({
       const c = document.createElement("canvas");
       c.width = tw;
       c.height = th;
-      const g = c.getContext("2d")!;
+      const g = c.getContext("2d", { willReadFrequently: false })!;
       g.fillStyle = PAPER;
       g.fillRect(0, 0, tw, th);
       const m = tw * 0.05;
@@ -353,6 +374,91 @@ export default function PaperStage({
       return c;
     }
 
+    /** Glints: a white-hot core, a halo in the image's own hue and four soft rays. */
+    function getSparks() {
+      if (sparkSprites) return sparkSprites;
+      const S = 64;
+      const m = S / 2;
+      sparkSprites = [-1, ...Array.from({ length: 12 }, (_, i) => i * 30)].map((h) => {
+        const c = document.createElement("canvas");
+        c.width = c.height = S;
+        const g = c.getContext("2d")!;
+        const col = h < 0 ? "255,190,52" : hslRgb(h, 96, 60);
+        const rg = g.createRadialGradient(m, m, 0, m, m, m * 0.62);
+        rg.addColorStop(0, "rgba(255,255,255,1)");
+        rg.addColorStop(0.14, "rgba(255,255,255,.95)");
+        rg.addColorStop(0.32, `rgba(${col},.62)`);
+        rg.addColorStop(1, `rgba(${col},0)`);
+        g.fillStyle = rg;
+        g.fillRect(0, 0, S, S);
+        const rays: [number, number, number, number][] = [
+          [1, 0, m, 2.2],
+          [0, 1, m, 2.2],
+          [0.707, 0.707, m * 0.42, 1.4],
+          [0.707, -0.707, m * 0.42, 1.4],
+        ];
+        g.lineCap = "round";
+        for (const [ax, ay, len, wd] of rays) {
+          const lg = g.createLinearGradient(m - ax * len, m - ay * len, m + ax * len, m + ay * len);
+          lg.addColorStop(0, `rgba(${col},0)`);
+          lg.addColorStop(0.36, `rgba(${col},.75)`);
+          lg.addColorStop(0.5, "rgba(255,255,255,1)");
+          lg.addColorStop(0.64, `rgba(${col},.75)`);
+          lg.addColorStop(1, `rgba(${col},0)`);
+          g.strokeStyle = lg;
+          g.lineWidth = wd;
+          g.beginPath();
+          g.moveTo(m - ax * len, m - ay * len);
+          g.lineTo(m + ax * len, m + ay * len);
+          g.stroke();
+        }
+        return c;
+      });
+      return sparkSprites;
+    }
+
+    function spark(x: number, y: number, size: number, alpha: number, hue = 0) {
+      if (alpha <= 0.02 || size < 1) return;
+      const c = ctx!;
+      c.globalAlpha = Math.min(1, alpha);
+      c.drawImage(getSparks()[hue], x - size / 2, y - size / 2, size, size);
+    }
+
+    /** Samples a print into a grid of cells (average of four taps per cell). */
+    function sampleGrid(tex: Tex, cols: number): Grid {
+      const { w, h } = sheet;
+      const tw = tex.width;
+      const th = tex.height;
+      const data = tex.getContext("2d")!.getImageData(0, 0, tw, th).data;
+      const rows = Math.max(2, Math.round((h / w) * cols));
+      const count = cols * rows;
+      const x = new Float32Array(count);
+      const y = new Float32Array(count);
+      const rgb = new Uint8ClampedArray(count * 3);
+      let k = 0;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++, k++) {
+          x[k] = -w / 2 + ((c + 0.5) / cols) * w;
+          y[k] = -h / 2 + ((r + 0.5) / rows) * h;
+          let R = 0;
+          let G = 0;
+          let B = 0;
+          for (const [fx, fy] of SUB) {
+            const px = Math.min(tw - 1, Math.floor(((c + fx) / cols) * tw));
+            const py = Math.min(th - 1, Math.floor(((r + fy) / rows) * th));
+            const o = (py * tw + px) * 4;
+            R += data[o];
+            G += data[o + 1];
+            B += data[o + 2];
+          }
+          rgb[k * 3] = R / 4;
+          rgb[k * 3 + 1] = G / 4;
+          rgb[k * 3 + 2] = B / 4;
+        }
+      }
+      return { cols, rows, cs: w / cols, csy: h / rows, count, x, y, rgb };
+    }
+
     /* ---------- projection & drawing ---------- */
 
     function view(p: P3): P3 {
@@ -363,6 +469,19 @@ export default function PaperStage({
     function proj(p: P3): [number, number] {
       const s = FOCAL / (FOCAL + p[2]);
       return [sheet.cx + p[0] * s, sheet.cy + p[1] * s];
+    }
+    // allocation-free projection for particle systems
+    let PX = 0;
+    let PY = 0;
+    let PS = 1;
+    function projPt(x: number, y: number, z: number) {
+      const xr = x * cyR + z * syR;
+      const z1 = -x * syR + z * cyR;
+      const yr = y * cxR - z1 * sxR;
+      const zr = y * sxR + z1 * cxR;
+      PS = FOCAL / (FOCAL + Math.max(-FOCAL * 0.7, zr));
+      PX = sheet.cx + xr * PS;
+      PY = sheet.cy + yr * PS;
     }
 
     function tracePath(s: [number, number][], inflate = 0, ox = 0) {
@@ -391,8 +510,11 @@ export default function PaperStage({
       ctx!.closePath();
     }
 
-    /** Draws a planar textured polygon with lambert shading and correct front/back texture. */
-    function drawPoly(world: P3[], uv: UV[], front: Tex, back: Tex | null, alpha = 1, uvBack?: UV[]) {
+    /**
+     * Draws a planar textured polygon with correct front/back texture, diffuse shading and an
+     * optional specular glint (gloss) that flares when the surface turns toward the key light.
+     */
+    function drawPoly(world: P3[], uv: UV[], front: Tex, back: Tex | null, alpha = 1, uvBack?: UV[], gloss = 0) {
       const c = ctx!;
       const k = world.length;
       const v = world.map(view);
@@ -432,6 +554,7 @@ export default function PaperStage({
       nz /= nl;
       const lam = Math.abs(nx * -0.3 + ny * -0.5 + nz * -0.81);
       const shade = Math.min(0.55, Math.max(0, 0.81 - lam) * 0.75 + (isFront ? 0 : 0.03));
+      const spec = gloss > 0 ? Math.min(0.8, Math.pow(lam, 26) * gloss) : 0;
 
       const tw = tex.width;
       const th = tex.height;
@@ -464,6 +587,11 @@ export default function PaperStage({
       if (shade > 0.01) {
         c.fillStyle = `rgba(28,43,39,${shade.toFixed(3)})`;
         c.fill(); // the clip path is still current, so only the polygon is shaded
+      }
+      if (spec > 0.02) {
+        c.globalCompositeOperation = "lighter";
+        c.fillStyle = `rgba(255,244,222,${spec.toFixed(3)})`;
+        c.fill();
       }
       c.restore();
     }
@@ -532,13 +660,13 @@ export default function PaperStage({
       c.restore();
     }
 
-    function drawFaces(faces: Face[], front: Tex, back: Tex | null, alpha = 1) {
+    function drawFaces(faces: Face[], front: Tex, back: Tex | null, alpha = 1, gloss = 0) {
       // Depth-sort in stage space (before the pointer tilt): the tilt is a rigid rotation, but it
-      // would swamp the sub-pixel offsets that keep folded paper layers in the right order.
+      // would swamp the small offsets that keep neighbouring pieces in the right order.
       const sorted = faces
         .map((f) => ({ f, z: f.world.reduce((s, p) => s + p[2], 0) / f.world.length }))
         .sort((a, b) => b.z - a.z);
-      for (const { f } of sorted) drawPoly(f.world, f.uv, front, back, alpha, f.uvBack);
+      for (const { f } of sorted) drawPoly(f.world, f.uv, front, back, alpha, f.uvBack, gloss);
     }
 
     /* ---------- poses ---------- */
@@ -570,7 +698,7 @@ export default function PaperStage({
       const c = corners(p);
       if (shadow) drawShadowSprite(p, 0.24 * alpha);
       const tex = getTex(k);
-      if (tex) drawPoly(c, UVQ, tex, null, alpha);
+      if (tex) drawPoly(c, UVQ, tex, null, alpha, undefined, 0.6);
       else fillPoly(c, PAPER, alpha);
     }
 
@@ -601,117 +729,299 @@ export default function PaperStage({
       const toV = (q: { x: number; y: number }): V => ({ x: q.x, y: q.y, u: q.x / w + 0.5, v: q.y / h + 0.5 });
       const left = [toV({ x: -w / 2, y: -h / 2 }), ...jag.map(toV), toV({ x: -w / 2, y: h / 2 })];
       const right = [toV(jag[0]), toV({ x: w / 2, y: -h / 2 }), toV({ x: w / 2, y: h / 2 }), ...jag.slice().reverse().map(toV)];
-      tear = { jag, left, right, pv: jag[N] };
+      // paper fibres and print flecks shaken loose along the tear
+      const g = sampleGrid(getTex(cur)!, 24);
+      const flecks = Array.from({ length: coarse ? 46 : 80 }, () => {
+        const t = Math.random();
+        const j = Math.min(N - 1, Math.floor(t * N));
+        const q = { x: lerp(jag[j].x, jag[j + 1].x, t * N - j), y: lerp(jag[j].y, jag[j + 1].y, t * N - j) };
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const cell = Math.min(g.count - 1, Math.floor((q.y / h + 0.5) * g.rows) * g.cols + Math.floor((q.x / w + 0.5) * g.cols));
+        const paper = Math.random() < 0.45;
+        return {
+          x: q.x,
+          y: q.y,
+          vx: side * rnd(40, 260),
+          vy: rnd(-220, -30),
+          vz: rnd(-380, 40),
+          b: rnd(0.1, 0.34) + (t * 0.08),
+          s: rnd(2, 6.5),
+          rot: rnd(0, 6.28),
+          spin: rnd(-9, 9),
+          col: paper ? PAPER : `rgb(${g.rgb[cell * 3]},${g.rgb[cell * 3 + 1]},${g.rgb[cell * 3 + 2]})`,
+          spark: Math.random() < 0.22 ? hueBucket(g.rgb[cell * 3], g.rgb[cell * 3 + 1], g.rgb[cell * 3 + 2]) + 1 : 0,
+        };
+      });
+      tear = { jag, left, right, pv: jag[N], flecks };
     }
 
-    function initParticles() {
-      const tex = getTex(cur)!;
-      const g = tex.getContext("2d")!;
-      const data = g.getImageData(0, 0, tex.width, tex.height).data;
+    function initDrift() {
       const { w, h } = sheet;
-      const cols = coarse ? 44 : 66;
-      const cs = w / cols;
-      const rows = Math.ceil(h / cs);
-      const count = cols * rows;
-      const rowNoise = new Float32Array(rows).map(() => Math.random());
-      const P = {
-        count,
-        x0: new Float32Array(count),
-        y0: new Float32Array(count),
-        t0: new Float32Array(count),
-        vx: new Float32Array(count),
-        vy: new Float32Array(count),
-        vz: new Float32Array(count),
-        ph: new Float32Array(count),
-        life: new Float32Array(count),
-        col: new Array<string>(count),
+      const T = DUR.particles;
+      const g = sampleGrid(getTex(cur)!, coarse ? 40 : 58);
+      const N = g.count;
+      const rowNoise = Float32Array.from({ length: g.rows }, () => Math.random());
+      const vcx = w * 0.5;
+      const vcy = -h * 0.04;
+      const D = {
+        g,
+        t0: new Float32Array(N),
+        life: new Float32Array(N),
+        rho0: new Float32Array(N),
+        th0: new Float32Array(N),
+        ph: new Float32Array(N),
+        spark: new Uint8Array(N),
+        col: new Array<string>(N),
         rowNoise,
-        rows,
-        cs,
+        vcx,
+        vcy,
       };
-      let k = 0;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const x = -w / 2 + (c + 0.5) * cs;
-          const y = Math.min(h / 2 - cs / 2, -h / 2 + (r + 0.5) * cs);
-          const px = Math.min(tex.width - 1, Math.floor((x / w + 0.5) * tex.width));
-          const py = Math.min(tex.height - 1, Math.floor((y / h + 0.5) * tex.height));
-          const o = (py * tex.width + px) * 4;
-          P.x0[k] = x;
-          P.y0[k] = y;
-          P.col[k] = `rgb(${data[o]},${data[o + 1]},${data[o + 2]})`;
-          const u = c / (cols - 1);
-          P.t0[k] = ((u + 0.3 * rowNoise[r]) / 1.3) * 0.8;
-          P.vx[k] = 110 + Math.random() * 280;
-          P.vy[k] = -50 - Math.random() * 210;
-          P.vz[k] = -280 + Math.random() * 220;
-          P.ph[k] = Math.random() * 6.283;
-          P.life[k] = 0.9 + Math.random() * 0.9;
-          k++;
-        }
+      for (let k = 0; k < N; k++) {
+        const r = Math.floor(k / g.cols);
+        const u = ((k % g.cols) + 0.5) / g.cols;
+        const t0 = (DRIFT_SPAN * (1 - u + 0.3 * rowNoise[r])) / 1.3;
+        const tau = t0 * T;
+        const dx = g.x[k] - (vcx + VORTEX_VX * tau);
+        const dy = g.y[k] - (vcy + VORTEX_VY * tau);
+        const R = g.rgb[k * 3];
+        const G = g.rgb[k * 3 + 1];
+        const B = g.rgb[k * 3 + 2];
+        D.t0[k] = t0;
+        D.life[k] = Math.min(rnd(1.8, 2.8), (1 - t0) * T - 0.05);
+        D.rho0[k] = Math.hypot(dx, dy);
+        D.th0[k] = Math.atan2(dy, dx);
+        D.ph[k] = rnd(0, 6.283);
+        D.col[k] = `rgb(${R},${G},${B})`;
+        D.spark[k] = Math.random() < 0.12 ? hueBucket(R, G, B) + 1 : 0;
       }
-      part = P;
+      dust = D;
     }
 
-    function rectPiece(): Piece {
+    function initReform() {
       const { w, h } = sheet;
-      return {
-        pts: [
+      const cols = coarse ? 38 : 58;
+      const A = sampleGrid(getTex(cur)!, cols);
+      const Bg = sampleGrid(getTex(cur + 1)!, cols);
+      const N = A.count;
+      const K = 7;
+      // pair departures and arrivals by distance from two wave origins: the old print
+      // lifts away from one point while the new one re-forms outward from another
+      const oA = { x: rnd(-0.5, 0.5) * w, y: rnd(-0.5, 0.5) * h };
+      const oB = { x: rnd(-0.3, 0.3) * w, y: rnd(-0.3, 0.3) * h };
+      const maxD = Math.hypot(w, h);
+      const keyA = Array.from({ length: N }, (_, k) => ({ k, d: Math.hypot(A.x[k] - oA.x, A.y[k] - oA.y) / maxD + Math.random() * 0.18 }));
+      const keyB = Array.from({ length: N }, (_, k) => ({ k, d: Math.hypot(Bg.x[k] - oB.x, Bg.y[k] - oB.y) / maxD + Math.random() * 0.18 }));
+      keyA.sort((a, b) => a.d - b.d);
+      keyB.sort((a, b) => a.d - b.d);
+      const R0 = Math.max(w, h) * 0.78;
+      const F = {
+        g: A,
+        tx: new Float32Array(N),
+        ty: new Float32Array(N),
+        d: new Float32Array(N),
+        R: new Float32Array(N),
+        ang: new Float32Array(N),
+        spin: new Float32Array(N),
+        yb: new Float32Array(N),
+        ph: new Float32Array(N),
+        spark: new Uint8Array(N),
+        col: new Array<string>(N * K),
+        K,
+      };
+      for (let rank = 0; rank < N; rank++) {
+        const k = keyA[rank].k;
+        const j = keyB[rank].k;
+        F.tx[k] = Bg.x[j];
+        F.ty[k] = Bg.y[j];
+        F.d[k] = 0.04 + 0.2 * (rank / N);
+        F.R[k] = (0.28 + 0.72 * Math.sqrt(Math.random())) * R0;
+        F.ang[k] = Math.atan2(A.y[k], A.x[k]) + rnd(-0.4, 0.4);
+        F.spin[k] = rnd(2.6, 4.6);
+        F.yb[k] = rnd(-0.5, 0.5) * h * 0.12;
+        F.ph[k] = rnd(0, 6.283);
+        const ra = A.rgb[k * 3];
+        const ga = A.rgb[k * 3 + 1];
+        const ba = A.rgb[k * 3 + 2];
+        const rb = Bg.rgb[j * 3];
+        const gb = Bg.rgb[j * 3 + 1];
+        const bb = Bg.rgb[j * 3 + 2];
+        for (let s = 0; s < K; s++) {
+          const t = s / (K - 1);
+          // mid-flight the dust glows a touch brighter, like motes catching the sun
+          const lift = Math.sin(Math.PI * t) * 0.22;
+          const mix = (a: number, b: number) => Math.round(lerp(lerp(a, b, t), 255, lift));
+          F.col[k * K + s] = `rgb(${mix(ra, rb)},${mix(ga, gb)},${mix(ba, bb)})`;
+        }
+        F.spark[k] = Math.random() < 0.085 ? hueBucket(rb, gb, bb) + 1 : 0;
+      }
+      reform = F;
+    }
+
+    function initShatter() {
+      const { w, h } = sheet;
+      const ix = rnd(-0.16, 0.16) * w;
+      const iy = rnd(-0.14, 0.1) * h;
+      let polys: V[][] = [
+        [
           { x: -w / 2, y: -h / 2, u: 0, v: 0 },
           { x: w / 2, y: -h / 2, u: 1, v: 0 },
           { x: w / 2, y: h / 2, u: 1, v: 1 },
           { x: -w / 2, y: h / 2, u: 0, v: 1 },
         ],
-        layer: 0,
-        tag: -1,
-      };
-    }
-
-    function initPlane() {
-      const { w, h } = sheet;
-      const top = -h / 2;
-      const s1 = bakeStep(
-        [rectPiece()],
-        [makeLine(0, top, -w / 2, top + w / 2, -w / 2, top), makeLine(0, top, w / 2, top + w / 2, w / 2, top)],
-      );
-      const a = (22.5 * Math.PI) / 180;
-      const s2 = bakeStep(s1.baked, [
-        makeLine(0, top, -Math.sin(a) * h, top + Math.cos(a) * h, -w / 2, 0),
-        makeLine(0, top, Math.sin(a) * h, top + Math.cos(a) * h, w / 2, 0),
-      ]);
-      const wx = w * 0.11;
-      let fin = s2.baked;
-      for (const lx of [-wx, 0, wx]) {
-        const out: Piece[] = [];
-        for (const pc of fin) {
-          const [A, B] = split(pc.pts, { px: lx, py: 0, dx: 0, dy: 1 });
-          if (Math.abs(area2(A)) > 0.5) out.push({ pts: A, layer: pc.layer, tag: -1 });
-          if (Math.abs(area2(B)) > 0.5) out.push({ pts: B, layer: pc.layer, tag: -1 });
-        }
-        fin = out;
+      ];
+      const ok = (p: V[]) => p.length >= 3 && Math.abs(area2(p)) > 4;
+      // radial cracks through the impact point…
+      const K = coarse ? 5 : 7;
+      const base = rnd(0, Math.PI);
+      for (let k = 0; k < K; k++) {
+        const a = base + (k * Math.PI) / K + rnd(-0.18, 0.18);
+        const L = { px: ix, py: iy, dx: Math.cos(a), dy: Math.sin(a) };
+        polys = polys.flatMap((p) => split(p, L)).filter(ok);
       }
-      const regions = fin.map((pc) => {
-        const cx = pc.pts.reduce((s, q) => s + q.x, 0) / pc.pts.length;
-        return cx < -wx ? 0 : cx < 0 ? 1 : cx < wx ? 2 : 3;
+      // …then two concentric rings of cross cracks
+      const diag = Math.hypot(w, h);
+      for (const ring of [0.14, 0.33]) {
+        polys = polys.flatMap((p) => {
+          const cx = p.reduce((s, q) => s + q.x, 0) / p.length - ix;
+          const cy = p.reduce((s, q) => s + q.y, 0) / p.length - iy;
+          const l = Math.hypot(cx, cy) || 1;
+          const r = ring * diag * rnd(0.8, 1.2);
+          return split(p, { px: ix + (cx / l) * r, py: iy + (cy / l) * r, dx: -cy / l, dy: cx / l }).filter(ok);
+        });
+      }
+      const list = polys.map((pts) => {
+        const cx = pts.reduce((s, q) => s + q.x, 0) / pts.length;
+        const cy = pts.reduce((s, q) => s + q.y, 0) / pts.length;
+        const dx0 = cx - ix;
+        const dy0 = cy - iy;
+        const dist = Math.hypot(dx0, dy0) || 1;
+        const dx = dx0 / dist;
+        const dy = dy0 / dist;
+        const sp = rnd(170, 440) * (1.2 - 0.5 * Math.min(1, dist / (0.6 * diag)));
+        let kx = rnd(-1, 1);
+        let ky = rnd(-1, 1);
+        let kz = rnd(-0.4, 0.4);
+        const kl = Math.hypot(kx, ky, kz) || 1;
+        kx /= kl;
+        ky /= kl;
+        kz /= kl;
+        return {
+          pts,
+          cx,
+          cy,
+          dx,
+          dy,
+          vx: dx * sp,
+          vy: dy * sp - rnd(60, 200),
+          vz: -rnd(160, 560),
+          kx,
+          ky,
+          kz,
+          om: rnd(2.2, 6.5) * (Math.random() < 0.5 ? -1 : 1),
+          delay: (dist / diag) * 0.22,
+        };
       });
-      fold = { steps: [s1, s2], final: fin, regions, wx };
+      const g = sampleGrid(getTex(cur)!, 30);
+      const cellAt = (x: number, y: number) =>
+        Math.min(g.count - 1, Math.max(0, Math.floor((y / h + 0.5) * g.rows)) * g.cols + Math.max(0, Math.min(g.cols - 1, Math.floor((x / w + 0.5) * g.cols))));
+      const bits = Array.from({ length: coarse ? 70 : 130 }, () => {
+        const x = rnd(-0.5, 0.5) * w;
+        const y = rnd(-0.5, 0.5) * h;
+        const c = cellAt(x, y);
+        const dx = x - ix;
+        const dy = y - iy;
+        const l = Math.hypot(dx, dy) || 1;
+        const sp = rnd(160, 620);
+        return {
+          x,
+          y,
+          vx: (dx / l) * sp,
+          vy: (dy / l) * sp - rnd(40, 200),
+          vz: -rnd(60, 620),
+          life: rnd(0.6, 1.5),
+          s: rnd(1.6, 4.6),
+          col: `rgb(${g.rgb[c * 3]},${g.rgb[c * 3 + 1]},${g.rgb[c * 3 + 2]})`,
+          delay: (l / diag) * 0.22,
+        };
+      });
+      const ci = cellAt(ix, iy);
+      const hue = hueBucket(g.rgb[ci * 3], g.rgb[ci * 3 + 1], g.rgb[ci * 3 + 2]);
+      const sparks = Array.from({ length: coarse ? 22 : 36 }, () => {
+        const a = rnd(0, 6.283);
+        const sp = rnd(220, 820);
+        return { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, vz: -rnd(0, 420), life: rnd(0.45, 1.15), s: rnd(12, 30), hue: Math.random() < 0.55 ? 0 : hue, ph: rnd(0, 6.283) };
+      });
+      shards = { list, ix, iy, bits, sparks, hue };
     }
 
-    function initFold() {
+    function initMosaic() {
       const { w, h } = sheet;
-      const s1 = bakeStep([rectPiece()], [makeLine(-w / 2, 0, w / 2, 0, 0, -h / 2)]);
-      const s2 = bakeStep(s1.baked, [makeLine(0, -h / 2, 0, h / 2, -w / 2, 0)]);
-      fold = { steps: [s1, s2], final: s2.baked, regions: [], wx: 0 };
+      const cols = coarse ? 5 : 7;
+      const rows = Math.max(3, Math.round((cols * h) / w));
+      const tw = w / cols;
+      const th = h / rows;
+      const origins = [
+        [-w / 2, -h / 2],
+        [w / 2, -h / 2],
+        [-w / 2, h / 2],
+        [w / 2, h / 2],
+        [0, 0],
+      ];
+      const [ox, oy] = origins[Math.floor(Math.random() * origins.length)];
+      const maxD = Math.max(...[-w / 2, w / 2].flatMap((x) => [-h / 2, h / 2].map((y) => Math.hypot(x - ox, y - oy))));
+      const list = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cx = -w / 2 + (c + 0.5) * tw;
+          const cy = -h / 2 + (r + 0.5) * th;
+          const dx = cx - ox;
+          const dy = cy - oy;
+          const vert = Math.abs(dx) / w >= Math.abs(dy) / h;
+          list.push({
+            cx,
+            cy,
+            hw: tw / 2,
+            hh: th / 2,
+            ua: c / cols,
+            ub: (c + 1) / cols,
+            va: r / rows,
+            vb: (r + 1) / rows,
+            d: 0.02 + 0.5 * (Math.hypot(dx, dy) / maxD) + rnd(0, 0.04),
+            vert,
+            sgn: (vert ? dx : dy) >= 0 ? 1 : -1,
+            spark: Math.random() < 0.35,
+          });
+        }
+      }
+      tiles = { list };
+    }
+
+    function initPage() {
+      page = {
+        dust: Array.from({ length: coarse ? 26 : 44 }, () => ({
+          b: rnd(0.1, 0.74),
+          v: Math.random(),
+          vx: rnd(-30, 90),
+          vy: rnd(-150, -20),
+          vz: rnd(-160, 40),
+          life: rnd(0.5, 1.1),
+          s: rnd(9, 22),
+          ph: rnd(0, 6.283),
+          hue: 0,
+        })),
+      };
     }
 
     function startTransition(now: number) {
       if (!getTex(cur) || !getTex(cur + 1)) return false;
-      tech = techOf(cur);
+      tech = dbg.tech ?? techOf(cur);
       pose0 = restPose(now / 1000);
       if (tech === "tear") initTear();
-      if (tech === "particles") initParticles();
-      if (tech === "plane") initPlane();
-      if (tech === "fold") initFold();
+      if (tech === "particles") initDrift();
+      if (tech === "reform") initReform();
+      if (tech === "shatter") initShatter();
+      if (tech === "mosaic") initMosaic();
+      if (tech === "pageTurn") initPage();
       phase = "trans";
       tStart = now;
       return true;
@@ -721,23 +1031,14 @@ export default function PaperStage({
 
     const off = (p: P3): P3 => [p[0] + pose0.x, p[1] + pose0.y, p[2] + pose0.z];
 
-    function stepFaces(step: ReturnType<typeof bakeStep>, phi: number, map?: (p: P3) => P3): Face[] {
-      return step.tagged.map((pc) => {
-        const z0 = -pc.layer * 0.9;
-        const world = pc.pts.map((q) => {
-          const p: P3 = pc.tag >= 0 ? foldPoint(q, step.lines[pc.tag], phi, z0) : [q.x, q.y, z0];
-          return map ? map(p) : off(p);
-        });
-        return { world, uv: pc.pts.map((q) => [q.u, q.v] as UV) };
-      });
-    }
-
     function drawTearFx(p: number) {
       const d = tear!;
       const tex = getTex(cur)!;
+      const c = ctx!;
       const a = eio(seg(p, 0, 0.28));
       const b = ein(seg(p, 0.2, 1));
       const alpha = 1 - seg(p, 0.8, 1);
+      const T = DUR.tear;
       for (const side of [-1, 1]) {
         const pts = side < 0 ? d.left : d.right;
         const cxp = pts.reduce((s, q) => s + q.x, 0) / pts.length;
@@ -764,17 +1065,18 @@ export default function PaperStage({
           tex,
           null,
           alpha,
+          undefined,
+          1.1,
         );
         // fibrous torn edge
         const edge = d.jag.map((q) => proj(view(tf(q))));
-        const c = ctx!;
         c.save();
         c.globalAlpha = alpha;
         c.lineJoin = "round";
         c.beginPath();
         edge.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
         c.strokeStyle = "rgba(255,253,248,.95)";
-        c.lineWidth = 3.2;
+        c.lineWidth = 3.4;
         c.stroke();
         c.strokeStyle = "rgba(28,43,39,.16)";
         c.lineWidth = 1;
@@ -782,46 +1084,287 @@ export default function PaperStage({
         c.stroke();
         c.restore();
       }
+      // flecks of paper and ink tumbling out of the tear, a few catching the light
+      for (const f of d.flecks) {
+        if (p < f.b) continue;
+        const age = (p - f.b) * T;
+        const lt = age / 1.5;
+        if (lt >= 1) continue;
+        projPt(f.x + f.vx * age + pose0.x, f.y + f.vy * age + 260 * age * age + pose0.y, f.vz * age + pose0.z);
+        const s = f.s * PS * (1 - lt * 0.4);
+        const fa = (1 - lt) * Math.min(1, age * 6);
+        c.save();
+        c.globalAlpha = fa;
+        c.translate(PX, PY);
+        c.rotate(f.rot + f.spin * age);
+        c.scale(1, Math.abs(Math.cos(f.rot * 3 + age * f.spin * 0.7)) * 0.8 + 0.2);
+        c.fillStyle = f.col;
+        c.fillRect(-s / 2, -s / 2, s, s * 0.7);
+        c.restore();
+        if (f.spark) spark(PX, PY, s * 4.2, fa * twinkle(age, f.rot), f.spark - 1);
+      }
+      c.globalAlpha = 1;
     }
 
-    function drawParticlesFx(p: number) {
-      const P = part!;
+    const DRIFT_SPAN = 0.55;
+    const VORTEX_VX = 22;
+    const VORTEX_VY = -14;
+
+    /** Pixel drift: the print dissolves right-to-left into a 3D vortex of its own coloured dust. */
+    function drawDriftFx(p: number) {
+      const D = dust!;
+      const { g } = D;
       const { w, h } = sheet;
       const T = DUR.particles;
       const c = ctx!;
+      const tau = p * T;
       // what is left of the print, behind a ragged dissolving front
-      const pts: P3[] = [off([w / 2, -h / 2, 0])];
-      for (let r = 0; r < P.rows; r++) {
-        const bu = (p / 0.8) * 1.3 - 0.3 * P.rowNoise[r];
-        const bx = Math.max(-w / 2, Math.min(w / 2, -w / 2 + bu * w));
-        const y0 = -h / 2 + r * P.cs;
-        const y1 = Math.min(h / 2, y0 + P.cs);
-        pts.push(off([bx, y0, 0]), off([bx, y1, 0]));
+      const pts: P3[] = [off([-w / 2, -h / 2, 0])];
+      for (let r = 0; r < g.rows; r++) {
+        const bu = (p / DRIFT_SPAN) * 1.3 - 0.3 * D.rowNoise[r];
+        const bx = Math.max(-w / 2, Math.min(w / 2, w / 2 - bu * w));
+        const y0 = -h / 2 + r * g.csy;
+        pts.push(off([bx, y0, 0]), off([bx, Math.min(h / 2, y0 + g.csy), 0]));
       }
-      pts.push(off([w / 2, h / 2, 0]));
+      pts.push(off([-w / 2, h / 2, 0]));
+      drawShadowSprite(pose0, 0.24 * (1 - seg(p, 0, DRIFT_SPAN)));
       c.save();
       tracePath(pts.map((q) => proj(view(q))));
       c.clip();
       drawSheet(cur, pose0, 1, false);
       c.restore();
 
-      for (let i = 0; i < P.count; i++) {
-        if (p < P.t0[i]) continue;
-        const age = (p - P.t0[i]) * T;
-        const lt = age / P.life[i];
+      const vx = D.vcx + VORTEX_VX * tau;
+      const vy = D.vcy + VORTEX_VY * tau;
+      for (let k = 0; k < g.count; k++) {
+        if (p < D.t0[k]) continue;
+        const a = tau - D.t0[k] * T;
+        const lt = a / D.life[k];
         if (lt >= 1) continue;
-        const x = P.x0[i] + P.vx[i] * age + Math.sin(age * 2.6 + P.ph[i]) * 16 * age;
-        const y = P.y0[i] + P.vy[i] * age - 40 * age * age;
-        const z = P.vz[i] * age;
-        const vp = view(off([x, y, z]));
-        const sc = FOCAL / (FOCAL + vp[2]);
-        const [sx, sy] = proj(vp);
-        const size = P.cs * 1.06 * (1 - lt * 0.55) * sc;
-        c.globalAlpha = (1 - lt) * (1 - lt * 0.3);
-        c.fillStyle = P.col[i];
-        c.fillRect(sx - size / 2, sy - size / 2, size, size);
+        const rho0 = D.rho0[k];
+        const rho = rho0 * (1 + 0.16 * a) + 10 * a;
+        const th = D.th0[k] + (0.6 + 3.6 * (110 / (rho0 + 110))) * a;
+        const ramp = Math.min(1, a * 1.4);
+        const x = vx + Math.cos(th) * rho + 22 * a * a;
+        const y = vy + Math.sin(th) * rho * 0.82 - 20 * a * a + Math.sin(a * 3.1 + D.ph[k]) * 8 * a;
+        const z = Math.sin(th * 1.3 + D.ph[k]) * rho * 0.5 * ramp - 110 * a;
+        projPt(x + pose0.x, y + pose0.y, z + pose0.z);
+        const sz = (1.05 - 0.45 * ramp) * (1 - 0.3 * lt) * PS;
+        c.globalAlpha = 1 - lt * lt * lt;
+        c.fillStyle = D.col[k];
+        c.fillRect(PX - (g.cs * sz) / 2, PY - (g.csy * sz) / 2, g.cs * sz, g.csy * sz);
+      }
+      // glitter riding the vortex, tinted by the colour of the pixel it came from
+      for (let k = 0; k < g.count; k++) {
+        const sp = D.spark[k];
+        if (!sp || p < D.t0[k]) continue;
+        const a = tau - D.t0[k] * T;
+        const lt = a / D.life[k];
+        if (lt >= 1) continue;
+        const rho0 = D.rho0[k];
+        const rho = rho0 * (1 + 0.16 * a) + 10 * a;
+        const th = D.th0[k] + (0.6 + 3.6 * (110 / (rho0 + 110))) * a;
+        const ramp = Math.min(1, a * 1.4);
+        projPt(
+          vx + Math.cos(th) * rho + 22 * a * a + pose0.x,
+          vy + Math.sin(th) * rho * 0.82 - 20 * a * a + Math.sin(a * 3.1 + D.ph[k]) * 8 * a + pose0.y,
+          Math.sin(th * 1.3 + D.ph[k]) * rho * 0.5 * ramp - 110 * a + pose0.z,
+        );
+        spark(PX, PY, g.cs * (3 + 2.2 * ramp) * PS, ramp * (1 - lt) * twinkle(a, D.ph[k]), sp - 1);
       }
       c.globalAlpha = 1;
+    }
+
+    /** Stardust reform: the print bursts into a swirling 3D galaxy of dust that re-forms as the next one. */
+    function drawReformFx(p: number, t: number) {
+      const F = reform!;
+      const { g, K } = F;
+      const c = ctx!;
+      const T = DUR.reform;
+      const poseB = restPose(t);
+      const gEnv = Math.sin(Math.PI * seg(p, 0.06, 0.9));
+      const spin = p * 1.3;
+
+      drawShadowSprite(lerpPose(pose0, poseB, p), 0.24 * Math.max(1 - seg(p, 0, 0.18), seg(p, 0.8, 1)));
+      // a warm bloom at the heart of the swirl
+      if (gEnv > 0.02) {
+        projPt(pose0.x, pose0.y, pose0.z);
+        const rr = Math.max(sheet.w, sheet.h) * 0.7 * PS;
+        const rg = c.createRadialGradient(PX, PY, 0, PX, PY, rr);
+        rg.addColorStop(0, `rgba(255,214,120,${(0.34 * gEnv).toFixed(3)})`);
+        rg.addColorStop(0.45, `rgba(255,194,61,${(0.12 * gEnv).toFixed(3)})`);
+        rg.addColorStop(1, "rgba(255,194,61,0)");
+        c.fillStyle = rg;
+        c.fillRect(PX - rr, PY - rr, rr * 2, rr * 2);
+      }
+
+      const sx: number[] = [];
+      for (let k = 0; k < g.count; k++) {
+        const q = eio(seg(p, F.d[k], F.d[k] + 0.64));
+        const env = Math.sin(Math.PI * q);
+        const bx = lerp(g.x[k], F.tx[k], q);
+        const by = lerp(g.y[k], F.ty[k], q);
+        const an = F.ang[k] + F.spin[k] * q + spin;
+        const R = F.R[k];
+        const x = lerp(bx, Math.cos(an) * R, env);
+        const y = lerp(by, F.yb[k] + Math.sin(an) * R * 0.2 + Math.sin(an * 2 + F.ph[k]) * 10, env);
+        const z = Math.sin(an) * R * 0.9 * env - 50 * env;
+        projPt(x + lerp(pose0.x, poseB.x, q), y + lerp(pose0.y, poseB.y, q), z);
+        const sz = (1.05 - 0.62 * env) * PS;
+        c.globalAlpha = 1;
+        c.fillStyle = F.col[k * K + Math.round(q * (K - 1))];
+        c.fillRect(PX - (g.cs * sz) / 2, PY - (g.csy * sz) / 2, g.cs * sz, g.csy * sz);
+        if (F.spark[k] && env > 0.05) sx.push(PX, PY, PS, env, k);
+      }
+      for (let i = 0; i < sx.length; i += 5) {
+        const k = sx[i + 4];
+        spark(sx[i], sx[i + 1], g.cs * 3.6 * sx[i + 2], Math.pow(sx[i + 3], 1.4) * twinkle(p * T, F.ph[k]), F.spark[k] - 1);
+      }
+      c.globalAlpha = 1;
+      // crisp prints at both ends hide the pixel grid
+      const aOut = 1 - seg(p, 0.02, 0.16);
+      if (aOut > 0) drawSheet(cur, pose0, aOut, false);
+      const aIn = seg(p, 0.84, 0.97);
+      if (aIn > 0) drawSheet(cur + 1, poseB, aIn, false);
+    }
+
+    /** Shard burst: cracks race out from an impact point, then the print bursts into 3D shards. */
+    function drawShatterFx(p: number) {
+      const S = shards!;
+      const tex = getTex(cur)!;
+      const c = ctx!;
+      const T = DUR.shatter;
+      const CR = 0.16;
+      const pc = eout(seg(p, 0, CR));
+      const tau = (p - CR) * T;
+      const alpha = 1 - seg(p, 0.74, 1);
+      const shake = p < CR ? Math.sin(p * 260) * 1.6 * pc : 0;
+      drawShadowSprite(pose0, 0.24 * (1 - seg(p, CR, CR + 0.2)));
+
+      const drawn = S.list.map((s) => {
+        const tt = Math.max(0, tau - s.delay);
+        let world: P3[];
+        if (tt <= 0) {
+          const gap = 2.4 * pc;
+          world = s.pts.map((q) => off([q.x + s.dx * gap + shake, q.y + s.dy * gap, 0]));
+        } else {
+          const ang = s.om * tt;
+          const tx = s.cx + s.vx * tt;
+          const ty = s.cy + s.vy * tt + 430 * tt * tt;
+          const tz = Math.max(-1100, s.vz * tt);
+          world = s.pts.map((q) => {
+            const r = rotAxis(q.x - s.cx, q.y - s.cy, 0, s.kx, s.ky, s.kz, ang);
+            return off([tx + r[0], ty + r[1], tz + r[2]]);
+          });
+        }
+        return { s, world, z: world.reduce((a, q) => a + q[2], 0) / world.length, moving: tt > 0 };
+      });
+      drawn.sort((a, b) => b.z - a.z);
+      for (const it of drawn) {
+        drawPoly(
+          it.world,
+          it.s.pts.map((q) => [q.u, q.v] as UV),
+          tex,
+          null,
+          alpha,
+          undefined,
+          1.5,
+        );
+        // cut edges catch the light like glass
+        const sp = it.world.map((q) => proj(view(q)));
+        c.save();
+        c.globalAlpha = alpha * (it.moving ? 0.9 : pc);
+        tracePath(sp);
+        c.lineJoin = "round";
+        c.strokeStyle = "rgba(255,253,248,.95)";
+        c.lineWidth = it.moving ? 1.4 : 1.2;
+        c.stroke();
+        c.restore();
+      }
+      // print crumbs
+      for (const b of S.bits) {
+        const tt = tau - b.delay;
+        if (tt <= 0) continue;
+        const lt = tt / b.life;
+        if (lt >= 1) continue;
+        projPt(b.x + b.vx * tt + pose0.x, b.y + b.vy * tt + 380 * tt * tt + pose0.y, b.vz * tt + pose0.z);
+        const s = b.s * PS;
+        c.globalAlpha = 1 - lt;
+        c.fillStyle = b.col;
+        c.fillRect(PX - s / 2, PY - s / 2, s, s);
+      }
+      // impact flash and glints thrown from it
+      projPt(S.ix + pose0.x, S.iy + pose0.y, pose0.z);
+      const fl = Math.sin(Math.PI * seg(p, 0.05, 0.3));
+      spark(PX, PY, Math.min(sheet.w, 260) * (0.4 + 0.6 * fl), fl, S.hue);
+      for (const s of S.sparks) {
+        const tt = tau + 0.05;
+        if (tt <= 0) continue;
+        const lt = tt / s.life;
+        if (lt >= 1) continue;
+        projPt(S.ix + s.vx * tt + pose0.x, S.iy + s.vy * tt + 300 * tt * tt + pose0.y, s.vz * tt + pose0.z);
+        spark(PX, PY, s.s * PS * (1 - lt * 0.5), (1 - lt) * twinkle(tt, s.ph), s.hue);
+      }
+      c.globalAlpha = 1;
+    }
+
+    /** Mosaic ripple: tiles flip in a wave from one corner, each revealing its piece of the next print. */
+    function drawMosaicFx(p: number, t: number) {
+      const M = tiles!;
+      const texA = getTex(cur)!;
+      const texB = getTex(cur + 1)!;
+      const poseB = restPose(t);
+      drawShadowSprite(lerpPose(pose0, poseB, p), 0.24);
+      const faces: Face[] = [];
+      const glints: number[] = [];
+      for (const tl of M.list) {
+        const f = eio(seg(p, tl.d, tl.d + 0.42));
+        const th = f * Math.PI * tl.sgn;
+        const wave = Math.sin(Math.PI * f);
+        const lift = -wave * 78;
+        const sc = 1 - 0.1 * wave;
+        const ox = lerp(pose0.x, poseB.x, f);
+        const oy = lerp(pose0.y, poseB.y, f);
+        const ct = Math.cos(th);
+        const st = Math.sin(th);
+        const pt = (lx: number, ly: number): P3 => {
+          lx *= sc;
+          ly *= sc;
+          if (tl.vert) return [tl.cx + lx * ct + ox, tl.cy + ly + oy, lx * st + lift];
+          return [tl.cx + lx + ox, tl.cy + ly * ct + oy, ly * st + lift];
+        };
+        const { hw, hh, ua, ub, va, vb } = tl;
+        faces.push({
+          world: [pt(-hw, -hh), pt(hw, -hh), pt(hw, hh), pt(-hw, hh)],
+          uv: [
+            [ua, va],
+            [ub, va],
+            [ub, vb],
+            [ua, vb],
+          ],
+          // the back carries the next print, mirrored across the flip axis
+          uvBack: tl.vert
+            ? [
+                [ub, va],
+                [ua, va],
+                [ua, vb],
+                [ub, vb],
+              ]
+            : [
+                [ua, vb],
+                [ub, vb],
+                [ub, va],
+                [ua, va],
+              ],
+        });
+        if (tl.spark && wave > 0.2) glints.push(tl.cx + ox, tl.cy + oy - hh * 0.6 * ct, lift, wave);
+      }
+      drawFaces(faces, texA, texB, 1, 1.6);
+      for (let i = 0; i < glints.length; i += 4) {
+        projPt(glints[i], glints[i + 1], glints[i + 2]);
+        spark(PX, PY, Math.min(sheet.w, sheet.h) * 0.26 * PS, Math.pow(glints[i + 3], 5), 0);
+      }
+      ctx!.globalAlpha = 1;
     }
 
     function drawStripsFx(p: number) {
@@ -832,6 +1375,7 @@ export default function PaperStage({
       const R = 3;
       drawShadowSprite(pose0, 0.24);
       const faces: Face[] = [];
+      const glints: number[] = [];
       for (let i = 0; i < N; i++) {
         const ua = i / N;
         const ub = (i + 1) / N;
@@ -841,7 +1385,7 @@ export default function PaperStage({
         const hw = (xb - xa) / 2;
         const di = (i / (N - 1)) * 0.42;
         const th = eio(seg(p, di, di + 0.58)) * Math.PI;
-        const bulge = -Math.sin(th) * 38;
+        const bulge = -Math.sin(th) * 46;
         const lx = xc - hw * Math.cos(th);
         const lz = -hw * Math.sin(th) + bulge;
         const rx = xc + hw * Math.cos(th);
@@ -867,35 +1411,45 @@ export default function PaperStage({
             ],
           });
         }
+        const sw = Math.sin(th);
+        if (sw > 0.25) glints.push(lx, -h / 2 + h * (0.18 + ((i * 0.37) % 0.64)), lz, sw);
       }
-      drawFaces(faces, texA, texB);
+      drawFaces(faces, texA, texB, 1, 1.5);
+      for (let i = 0; i < glints.length; i += 4) {
+        projPt(glints[i] + pose0.x, glints[i + 1] + pose0.y, glints[i + 2] + pose0.z);
+        spark(PX, PY, 46 * PS, Math.pow(glints[i + 3], 6), 0);
+      }
+      ctx!.globalAlpha = 1;
+    }
+
+    /** A point on the curling page: u along the width (0 = spine), v down the height. */
+    function curlPt(e: number, u: number, v: number): P3 {
+      const { w, h } = sheet;
+      const beta = 1.7 * Math.sin(Math.PI * e);
+      const dd = u * w;
+      const th = Math.min(Math.PI, Math.max(0, e * Math.PI + (v - 0.5) * 0.6 * Math.sin(Math.PI * e)));
+      let x: number;
+      let z: number;
+      if (beta < 1e-3) {
+        x = -w / 2 + dd * Math.cos(th);
+        z = -dd * Math.sin(th);
+      } else {
+        x = -w / 2 + (w / beta) * (Math.sin(th + (beta * dd) / w) - Math.sin(th));
+        z = -(w / beta) * (Math.cos(th) - Math.cos(th + (beta * dd) / w));
+      }
+      // a flatter arc keeps the lifted page elegant instead of ballooning toward the lens
+      return [x, -h / 2 + v * h, z * 0.5];
     }
 
     function drawPageFx(p: number) {
-      const { w, h } = sheet;
       const tex = getTex(cur)!;
       const e = eio(p);
       const nx = coarse ? 12 : 18;
       const ny = coarse ? 6 : 8;
-      const beta = 1.7 * Math.sin(Math.PI * e);
       const grid: P3[][] = [];
       for (let j = 0; j <= ny; j++) {
         const row: P3[] = [];
-        for (let i = 0; i <= nx; i++) {
-          const dd = (i / nx) * w;
-          const th = Math.min(Math.PI, Math.max(0, e * Math.PI + (j / ny - 0.5) * 0.6 * Math.sin(Math.PI * e)));
-          let x: number;
-          let z: number;
-          if (beta < 1e-3) {
-            x = -w / 2 + dd * Math.cos(th);
-            z = -dd * Math.sin(th);
-          } else {
-            x = -w / 2 + (w / beta) * (Math.sin(th + (beta * dd) / w) - Math.sin(th));
-            z = -(w / beta) * (Math.cos(th) - Math.cos(th + (beta * dd) / w));
-          }
-          // a flatter arc keeps the lifted page elegant instead of ballooning toward the lens
-          row.push(off([x, -h / 2 + (j / ny) * h, z * 0.5]));
-        }
+        for (let i = 0; i <= nx; i++) row.push(off(curlPt(e, i / nx, j / ny)));
         grid.push(row);
       }
       const alpha = 1 - seg(p, 0.82, 1);
@@ -929,114 +1483,20 @@ export default function PaperStage({
           });
         }
       }
-      drawFaces(faces, tex, null, alpha);
-    }
-
-    function drawPlaneFx(p: number) {
-      const F = fold!;
-      const tex = getTex(cur)!;
-      const f1 = eio(seg(p, 0, 0.16));
-      const f2 = eio(seg(p, 0.18, 0.34));
-      const f3 = eio(seg(p, 0.37, 0.55));
-      const fly = seg(p, 0.56, 1);
-      if (p < 0.17) return drawFaces(stepFaces(F.steps[0], f1 * Math.PI), tex, null);
-      if (p < 0.355) return drawFaces(stepFaces(F.steps[1], f2 * Math.PI), tex, null);
-
-      const sA = eio(seg(fly, 0, 0.4));
-      const sc = 1 - 0.3 * f3 - 0.18 * sA;
-      const ac = f3 * 1.42;
-      const e1 = Math.pow(fly, 1.6);
-      const T: P3 = [
-        (W - sheet.cx + 320) * e1,
-        -(sheet.cy + 320) * Math.pow(fly, 1.9) + 80 * Math.sin(Math.PI * Math.min(1, fly * 1.3)) - 26 * f3,
-        520 * fly,
-      ];
-      const wob = Math.sin(fly * 9) * 0.12 * fly;
-      const a = -Math.PI / 2 * sA + wob;
-      const b = 1.2 * sA;
-      const g = -0.34 * sA;
-      const ca = Math.cos(a);
-      const sa = Math.sin(a);
-      const cb = Math.cos(b);
-      const sb = Math.sin(b);
-      const cg = Math.cos(g);
-      const sg = Math.sin(g);
-      const faces: Face[] = F.final.map((pc, k) => {
-        const wing = F.regions[k] === 0 || F.regions[k] === 3;
-        const world = pc.pts.map((q) => {
-          const sgn = q.x < 0 ? -1 : 1;
-          let ax = Math.abs(q.x);
-          let z = -pc.layer * 0.9;
-          if (wing) {
-            const dx = ax - F.wx;
-            ax = F.wx + dx * Math.cos(ac);
-            z += -dx * Math.sin(ac);
-          }
-          const ax2 = ax * Math.cos(ac) - z * Math.sin(ac);
-          const z2 = ax * Math.sin(ac) + z * Math.cos(ac);
-          const x = sgn * ax2 * sc;
-          const y = q.y * sc;
-          const zz = z2 * sc;
-          const y1 = y * ca - zz * sa;
-          const z1 = y * sa + zz * ca;
-          const x2 = x * cb + z1 * sb;
-          const z3 = -x * sb + z1 * cb;
-          const x3 = x2 * cg - y1 * sg;
-          const y3 = x2 * sg + y1 * cg;
-          return off([x3 + T[0], y3 + T[1], z3 + T[2]]);
-        });
-        return { world, uv: pc.pts.map((q) => [q.u, q.v] as UV) };
-      });
-      drawFaces(faces, tex, null);
-    }
-
-    function drawFoldFx(p: number) {
-      const F = fold!;
-      const tex = getTex(cur)!;
-      const f1 = eio(seg(p, 0, 0.3));
-      const f2 = eio(seg(p, 0.32, 0.6));
-      const ex = seg(p, 0.62, 1);
-      if (p < 0.31) return drawFaces(stepFaces(F.steps[0], f1 * Math.PI), tex, null);
-      if (p < 0.61) return drawFaces(stepFaces(F.steps[1], f2 * Math.PI), tex, null);
-      const e = eio(ex);
-      const pcx = sheet.w / 4;
-      const pcy = sheet.h / 4;
-      const rz = 0.42 * e;
-      const cr = Math.cos(rz);
-      const sr = Math.sin(rz);
-      const lift = -34 * Math.sin(Math.PI * Math.min(1, ex * 2)) * (1 - ex);
-      const ty = (H - sheet.cy + sheet.h) * e * e * 0.95 + lift;
-      const tx = sheet.w * 0.18 * e;
-      const alpha = 1 - seg(ex, 0.75, 1);
-      const faces: Face[] = F.final.map((pc) => ({
-        world: pc.pts.map((q) => {
-          const rx = q.x - pcx;
-          const ry = q.y - pcy;
-          return off([pcx + rx * cr - ry * sr + tx, pcy + rx * sr + ry * cr + ty, -pc.layer * 0.9 - 40 * e]);
-        }),
-        uv: pc.pts.map((q) => [q.u, q.v] as UV),
-      }));
-      const outline = faces.flatMap((f) => f.world);
-      if (outline.length) {
-        const xs = outline.map((q) => q[0]);
-        const ys = outline.map((q) => q[1]);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        shadowPoly(
-          [
-            [minX, minY, 0],
-            [maxX, minY, 0],
-            [maxX, maxY, 0],
-            [minX, maxY, 0],
-          ],
-          28,
-          0.18 * alpha,
-          18,
-        );
+      // glossy stock: the sheen rolls across the curl as the page turns
+      drawFaces(faces, tex, null, alpha, 1.1);
+      // golden dust shaken off the free edge
+      const T = DUR.pageTurn;
+      for (const d of page!.dust) {
+        if (p < d.b) continue;
+        const a = (p - d.b) * T;
+        const lt = a / d.life;
+        if (lt >= 1) continue;
+        const s0 = curlPt(eio(d.b), 1, d.v);
+        projPt(s0[0] + d.vx * a + pose0.x, s0[1] + d.vy * a + 120 * a * a + pose0.y, s0[2] + d.vz * a + pose0.z);
+        spark(PX, PY, d.s * PS, (1 - lt) * twinkle(a, d.ph) * alpha, d.hue);
       }
-      drawFaces(faces, tex, null, alpha);
+      ctx!.globalAlpha = 1;
     }
 
     /* ---------- loop ---------- */
@@ -1096,35 +1556,40 @@ export default function PaperStage({
         return;
       }
       if (bar) bar.style.transform = "scaleX(1)";
-      const p = clamp01(el / DUR[tech]);
+      const p = dbg.p ?? clamp01(el / DUR[tech]);
       drawFrameTrans(p, t);
       if (p >= 1) {
         cur = idx(cur + 1);
         phase = "hold";
         tStart = now;
         tear = null;
-        part = null;
-        fold = null;
+        dust = null;
+        reform = null;
+        shards = null;
+        tiles = null;
+        page = null;
         changeRef.current(cur, techOf(cur));
       }
     }
 
     function drawFrameTrans(p: number, t: number) {
       const settle = seg(p, SETTLE_AT[tech], Math.min(1, SETTLE_AT[tech] + 0.62));
-      drawStack(settle, t, tech === "strips");
+      drawStack(settle, t, !!SELF_REVEAL[tech]);
       switch (tech) {
         case "tear":
           return drawTearFx(p);
         case "particles":
-          return drawParticlesFx(p);
+          return drawDriftFx(p);
+        case "reform":
+          return drawReformFx(p, t);
+        case "shatter":
+          return drawShatterFx(p);
+        case "mosaic":
+          return drawMosaicFx(p, t);
         case "strips":
           return drawStripsFx(p);
         case "pageTurn":
           return drawPageFx(p);
-        case "plane":
-          return drawPlaneFx(p);
-        case "fold":
-          return drawFoldFx(p);
         default:
           return drawSheet(cur, pose0, 1 - eio(p));
       }
@@ -1149,6 +1614,21 @@ export default function PaperStage({
       tilt.ty = Math.max(-0.5, Math.min(0.5, px)) * 0.34;
       tilt.tx = Math.max(-0.5, Math.min(0.5, py)) * 0.26;
     };
+
+    // ?fxdebug exposes a deterministic seek for visual testing of each technique
+    if (location.search.includes("fxdebug")) {
+      (window as unknown as { __fx: unknown }).__fx = {
+        run: (k: Technique) => {
+          phase = "hold";
+          dbg.p = 0;
+          dbg.tech = k;
+          return startTransition(performance.now());
+        },
+        seek: (p: number) => {
+          dbg.p = p;
+        },
+      };
+    }
 
     controlRef.current = {
       next: () => {

@@ -12,12 +12,13 @@ import { Texture, delay } from "./ui";
 
 const CAT_ICON = Object.fromEntries(CATS.map((c) => [c.id, c.icon])) as Record<Cat | "all", IconName>;
 const TECH_ICON: Record<Technique, IconName> = {
-  plane: "plane",
   pageTurn: "page",
   tear: "tear",
   particles: "particles",
   strips: "strips",
-  fold: "fold",
+  reform: "swirl",
+  shatter: "shatter",
+  mosaic: "mosaic",
   fade: "layers",
 };
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -52,7 +53,7 @@ export default function Hero() {
         {pad(now.i + 1)}
       </p>
 
-      {/* The paper stage spans the whole hero so planes and pixels can leave the frame */}
+      {/* The paper stage spans the whole hero so dust, shards and pixels can leave the frame */}
       <PaperStage className="absolute inset-0 z-[1] h-full w-full" items={WORK} anchorRef={anchor} progressRef={bar} controlRef={control} onChange={onChange} />
 
       <div className="pointer-events-none relative z-10 mx-auto grid w-full max-w-[1480px] flex-1 grid-cols-1 content-center gap-7 px-5 pb-[84px] pt-24 sm:px-8 sm:pb-[96px] sm:pt-28 lg:grid-cols-12 lg:gap-6 lg:px-12 lg:pb-[118px] lg:pt-28">

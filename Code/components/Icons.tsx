@@ -195,13 +195,6 @@ const ICONS = {
       <path d="M27 25l10 10" />
     </>
   ),
-  plane: (
-    <>
-      <A><path d="M43 5L19 26l5 15 5-11z" /></A>
-      <path d="M43 5L5 21l14 5 5 15 5-11 10 5z" />
-      <path d="M19 26L43 5M29 30L43 5" />
-    </>
-  ),
   page: (
     <>
       <A><path d="M24 12c5-3 12-4 18-3v28c-6-1-13 0-18 3z" /></A>
@@ -231,11 +224,27 @@ const ICONS = {
       <rect x="33" y="9" width="9" height="30" rx="2" />
     </>
   ),
-  fold: (
+  swirl: (
     <>
-      <A><path d="M28 8l12 12H28z" /></A>
-      <path d="M8 8h20l12 12v20H8z" />
-      <path d="M28 8v12h12M8 24h32" />
+      <A><circle cx="24" cy="24" r="9" /></A>
+      <path d="M24 24c0-3 4-4 6-2 3 3 1 9-4 10-6 1-11-4-10-10 1-7 9-11 16-9 8 2 12 11 9 19" />
+      <path d="M9 12h.01M40 9h.01M8 36h.01M36 41h.01" strokeWidth={4} />
+    </>
+  ),
+  shatter: (
+    <>
+      <A><path d="M26 22L40 8v14z" /></A>
+      <rect x="8" y="8" width="32" height="32" rx="3" />
+      <path d="M26 22L40 8M26 22L8 15M26 22l-8 18M26 22l14 7M26 22l6 18" />
+    </>
+  ),
+  mosaic: (
+    <>
+      <A><path d="M27 29l13-4v15l-13 2z" /></A>
+      <rect x="8" y="8" width="13" height="13" rx="2" />
+      <rect x="27" y="8" width="13" height="13" rx="2" />
+      <rect x="8" y="27" width="13" height="13" rx="2" />
+      <path d="M27 29l13-4v15l-13 2z" />
     </>
   ),
   check: <path d="M10 25l9 9 19-19" />,
