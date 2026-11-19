@@ -557,3 +557,14 @@ nav {
     animation: none;
   }
 }
+
+/* ---------- intro overlay ---------- */
+.intro {
+  display: none;
+}
+html.js:not(.intro-skip) .intro {
+  display: block;
+}
+html.js:not(.intro-skip):not(.intro-seen) body {
+  overflow: hidden;
+}

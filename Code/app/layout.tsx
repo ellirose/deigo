@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Serif, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 import { I18nProvider } from "@/components/i18n";
+import Intro from "@/components/Intro";
 import { RevealObserver } from "@/components/ui";
 import "./globals.css";
 
@@ -23,11 +24,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${serif.variable}`} suppressHydrationWarning>
       <head>
-        {/* Enables reveal animations only when JavaScript runs, so content is never hidden without it. */}
-        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
+        {/* Enables reveal animations only when JavaScript runs (so content is never hidden without it),
+            and skips the intro for the rest of the session once it has played. */}
+        <script dangerouslySetInnerHTML={{ __html: "var d=document.documentElement;d.classList.add('js');try{if(sessionStorage.getItem('ds-intro'))d.classList.add('intro-skip')}catch(e){}" }} />
       </head>
       <body className="font-sans antialiased">
-        <I18nProvider>{children}</I18nProvider>
+        <I18nProvider>
+          <Intro />
+          {children}
+        </I18nProvider>
         <RevealObserver />
       </body>
     </html>
