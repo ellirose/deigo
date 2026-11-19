@@ -1,31 +1,63 @@
 "use client";
 
 import Image from "next/image";
-import { useId, type CSSProperties } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { CATS, WORK, type Cat } from "@/lib/work";
 import { Flag } from "./Brand";
 import CalcadaoWave from "./canvas/CalcadaoWave";
+import PaperStage, { techniqueFor, type StageHandle, type Technique } from "./canvas/PaperStage";
 import { useI18n } from "./i18n";
-import { Icon } from "./Icons";
+import { Icon, type IconName } from "./Icons";
 import { Texture, delay } from "./ui";
 
+const CAT_ICON = Object.fromEntries(CATS.map((c) => [c.id, c.icon])) as Record<Cat | "all", IconName>;
+const TECH_ICON: Record<Technique, IconName> = {
+  plane: "plane",
+  pageTurn: "page",
+  tear: "tear",
+  particles: "particles",
+  strips: "strips",
+  fold: "fold",
+  fade: "layers",
+};
+const pad = (n: number) => String(n).padStart(2, "0");
+const onAccent = { "--icon-accent": "rgb(255 255 255 / .25)" } as CSSProperties;
+
 export default function Hero() {
-  const { t } = useI18n();
-  const ringId = useId();
+  const { t, lang } = useI18n();
+  const anchor = useRef<HTMLButtonElement>(null);
+  const bar = useRef<HTMLSpanElement>(null);
+  const control = useRef<StageHandle | null>(null);
+  const [now, setNow] = useState<{ i: number; tech: Technique }>({ i: 0, tech: techniqueFor(WORK[0], 0) });
+  const [paused, setPaused] = useState(false);
+  const onChange = useCallback((i: number, tech: Technique) => setNow({ i, tech }), []);
+  const item = WORK[now.i];
+
+  const togglePause = () => {
+    const next = !paused;
+    control.current?.setPaused(next);
+    setPaused(next);
+  };
 
   return (
-    <section id="top" className="relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-sand lg:h-[100svh] lg:min-h-[700px] lg:max-h-[1100px]">
+    <section id="top" className="relative isolate flex min-h-[100svh] flex-col overflow-hidden bg-sand lg:h-[100svh] lg:min-h-[720px] lg:max-h-[1100px]">
       <Texture src="/textures/plaster.jpg" size={460} opacity={0.6} />
-      {/* The sun: one flat disc, slowly breathing */}
-      <div aria-hidden className="sun-breathe absolute -right-[110px] -top-[150px] size-[280px] sm:-right-[12vw] sm:-top-[18vh] sm:size-[clamp(340px,62vh,720px)] rounded-full bg-sol lg:-right-[6vw]" />
-      {/* Faint contour rings echoing the sun */}
-      <svg aria-hidden className="absolute -right-[110px] -top-[150px] size-[280px] sm:-right-[12vw] sm:-top-[18vh] sm:size-[clamp(340px,62vh,720px)] text-sol lg:-right-[6vw]" viewBox="0 0 100 100">
+      <div aria-hidden className="sun-breathe absolute -right-[110px] -top-[150px] size-[280px] rounded-full bg-sol sm:-right-[8vw] sm:-top-[20vh] sm:size-[clamp(340px,60vh,700px)]" />
+      <svg aria-hidden className="absolute -right-[110px] -top-[150px] size-[280px] text-sol sm:-right-[8vw] sm:-top-[20vh] sm:size-[clamp(340px,60vh,700px)]" viewBox="0 0 100 100">
         <circle cx="50" cy="50" r="58" fill="none" stroke="currentColor" strokeWidth=".35" opacity=".9" />
         <circle cx="50" cy="50" r="66" fill="none" stroke="currentColor" strokeWidth=".25" opacity=".6" />
       </svg>
+      {/* oversized catalogue number of the print on show */}
+      <p key={now.i} aria-hidden className="numeral pointer-events-none absolute bottom-[12%] right-[3%] hidden select-none font-serif text-[clamp(10rem,19vw,20rem)] italic leading-none text-[#efe5d0] lg:block">
+        {pad(now.i + 1)}
+      </p>
 
-      <div className="relative z-10 mx-auto grid w-full max-w-[1480px] flex-1 grid-cols-1 content-center gap-6 px-5 sm:gap-8 pb-[84px] pt-24 sm:px-8 sm:pb-[96px] sm:pt-28 lg:grid-cols-12 lg:gap-6 lg:px-12 lg:pb-[120px] lg:pt-28">
+      {/* The paper stage spans the whole hero so planes and pixels can leave the frame */}
+      <PaperStage className="absolute inset-0 z-[1] h-full w-full" items={WORK} anchorRef={anchor} progressRef={bar} controlRef={control} onChange={onChange} />
+
+      <div className="pointer-events-none relative z-10 mx-auto grid w-full max-w-[1480px] flex-1 grid-cols-1 content-center gap-7 px-5 pb-[84px] pt-24 sm:px-8 sm:pb-[96px] sm:pt-28 lg:grid-cols-12 lg:gap-6 lg:px-12 lg:pb-[118px] lg:pt-28">
         {/* Copy */}
-        <div className="lg:col-span-7 lg:self-center">
+        <div className="pointer-events-auto lg:col-span-6 lg:self-center">
           <p data-reveal className="inline-flex items-center gap-2.5 rounded-full bg-paper/90 py-1.5 pl-1.5 pr-4 text-[12px] font-extrabold uppercase tracking-[.18em] shadow-soft ring-1 ring-line sm:text-[13px]">
             <Flag code="pt" className="size-7" />
             <span>
@@ -34,7 +66,7 @@ export default function Hero() {
             </span>
           </p>
 
-          <h1 className="mt-6 font-display text-[clamp(2.5rem,5.9vw,6.6rem)] lg:text-[clamp(3rem,min(5.5vw,9.2svh),6.6rem)] font-extrabold leading-[.93] tracking-[-0.04em]">
+          <h1 className="mt-6 font-display text-[clamp(2.5rem,5.9vw,6.6rem)] font-extrabold leading-[.93] tracking-[-0.04em] lg:text-[clamp(3rem,min(5.1vw,9svh),6.2rem)]">
             <span data-reveal className="block text-balance" style={delay(80)}>
               {t.hero.line1}
             </span>
@@ -50,11 +82,11 @@ export default function Hero() {
             </span>
           </h1>
 
-          <p data-reveal style={delay(280)} className="mt-5 max-w-[40ch] text-[clamp(1rem,1.3vw,1.32rem)] sm:mt-6 font-medium leading-relaxed text-muted">
+          <p data-reveal style={delay(280)} className="mt-5 max-w-[40ch] text-[clamp(1rem,1.25vw,1.3rem)] font-medium leading-relaxed text-muted sm:mt-6">
             {t.hero.sub}
           </p>
 
-          <div data-reveal style={delay(360)} className="mt-6 flex flex-wrap items-center sm:mt-8 gap-x-6 gap-y-4">
+          <div data-reveal style={delay(360)} className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-4 sm:mt-8">
             <a href="#work" className="btn-primary group">
               {t.hero.cta}
               <span className="btn-primary-icon">
@@ -66,105 +98,109 @@ export default function Hero() {
             </a>
           </div>
 
-          <div data-reveal style={delay(460)} className="hero-tall-only mt-10 hidden items-center gap-4 lg:flex">
-            <div className="flex -space-x-2">
-              {(["code", "pen", "play"] as const).map((n, i) => (
-                <span
-                  key={n}
-                  className={`grid size-14 place-items-center rounded-2xl text-paper shadow-soft ring-4 ring-sand ${["bg-mata", "bg-coral", "bg-mar"][i]}`}
-                  style={{ "--icon-accent": "rgb(255 255 255 / .25)" } as CSSProperties}
-                >
-                  <Icon name={n} className="size-8" />
-                </span>
-              ))}
-            </div>
-            <div className="leading-tight">
-              <p className="font-display text-lg font-extrabold">{t.hero.disciplines}</p>
-              <p className="text-sm font-semibold text-muted">{t.hero.years}</p>
-            </div>
-          </div>
+          <dl data-reveal style={delay(460)} className="hero-tall-only mt-9 hidden items-center gap-5 lg:flex">
+            {(
+              [
+                ["20+", t.hero.stat],
+                ["10", t.hero.statYears],
+                [String(WORK.length), t.hero.statPieces],
+              ] as const
+            ).map(([v, l], i) => (
+              <div key={l} className="flex items-center gap-3">
+                <dt className="font-display text-[2.1rem] font-extrabold leading-none tracking-tight text-mata">{v}</dt>
+                <dd className="max-w-[10ch] text-[13px] font-bold leading-tight text-muted">{l}</dd>
+                {i < 2 && <span aria-hidden className="ml-2 h-9 w-px bg-line" />}
+              </div>
+            ))}
+          </dl>
         </div>
 
-        {/* Visual: an arched window cut into the plaster wall */}
-        <div className="relative flex h-[clamp(170px,25svh,340px)] sm:h-[clamp(230px,36svh,340px)] items-center justify-center lg:col-span-5 lg:h-full lg:max-h-[700px] lg:justify-end">
-          <div data-reveal="scale" style={delay(150)} className="relative aspect-[3/4] h-full lg:mr-[6%]">
-            <div className="h-full rounded-b-[30px] rounded-t-full bg-paper p-[clamp(6px,0.8vw,12px)] shadow-lift ring-1 ring-line">
-              <div className="relative h-full overflow-hidden rounded-b-[22px] rounded-t-full bg-mar">
-                <video
-                  className="h-full w-full object-cover"
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  preload="auto"
-                  poster="/media/hero-cove.jpg"
-                  aria-label={t.hero.videoLabel}
-                >
-                  <source src="/media/hero-cove.mp4" type="video/mp4" />
-                </video>
-                {/* depth: the window reveal casts a soft inner shadow */}
-                <div aria-hidden className="absolute inset-0 rounded-b-[22px] rounded-t-full shadow-[inset_0_26px_44px_-10px_rgb(10_60_50_/_.45),inset_0_-10px_24px_-12px_rgb(10_60_50_/_.35)]" />
-                {/* mullion */}
-                <div aria-hidden className="absolute inset-y-0 left-1/2 w-[clamp(4px,0.5vw,8px)] -translate-x-1/2 bg-paper/90" />
-                <div aria-hidden className="absolute inset-x-0 top-[38%] h-[clamp(4px,0.5vw,8px)] bg-paper/90" />
-              </div>
-            </div>
-            {/* sill */}
-            <div aria-hidden className="absolute -bottom-3 left-[-9%] right-[-9%] h-5 rounded-full bg-paper shadow-soft ring-1 ring-line" />
+        {/* Stage footprint: the canvas prints each sheet exactly inside this box */}
+        <div className="relative flex h-[clamp(180px,23svh,300px)] items-center justify-center sm:h-[clamp(230px,27svh,360px)] lg:col-span-6 lg:h-full lg:justify-end">
+          <div className="relative aspect-[4/5] h-full lg:mr-[10%] lg:h-[min(62svh,620px)]">
+            <button
+              ref={anchor}
+              type="button"
+              onClick={() => control.current?.next()}
+              aria-label={`${t.hero.next}: ${item.title[lang]}`}
+              className="pointer-events-auto absolute inset-0 cursor-pointer rounded-md"
+            />
 
-            {/* Portrait with a rotating caption ring */}
-            <div data-reveal="scale" style={delay(420)} className="absolute -left-[26%] bottom-[4%] aspect-square w-[42%] sm:-left-[34%] sm:w-[50%]">
-              {/* paper badge the caption is printed on */}
-              <span aria-hidden className="absolute -inset-[18%] rounded-full bg-paper shadow-lift ring-1 ring-line" />
-              <svg aria-hidden viewBox="0 0 200 200" className="spin-slow absolute -inset-[18%] h-[136%] w-[136%] text-ink">
-                <defs>
-                  <path id={ringId} d="M100,100 m-84,0 a84,84 0 1,1 168,0 a84,84 0 1,1 -168,0" />
-                </defs>
-                <text className="fill-current text-[11px] font-extrabold">
-                  <textPath href={`#${ringId}`} textLength="520" lengthAdjust="spacing">
-                    {t.hero.ring}
-                  </textPath>
-                </text>
-              </svg>
-              <div className="relative h-full w-full overflow-hidden rounded-full border-[clamp(4px,0.5vw,7px)] border-paper bg-mar shadow-lift">
-                <Image src="/photos/diego-01-teal-headphones.jpg" alt={t.hero.portraitAlt} fill priority sizes="(min-width:1024px) 260px, 160px" className="object-cover" />
+            {/* Polaroid portrait */}
+            <figure data-reveal="left" style={delay(520)} className="pointer-events-auto absolute -left-[56%] bottom-[18%] z-10 w-[50%] sm:-left-[40%] sm:bottom-[4%] sm:w-[44%] lg:-left-[36%]">
+              <div className="relative -rotate-[7deg] bg-paper p-[6%] pb-[24%] shadow-lift ring-1 ring-line transition duration-500 hover:-translate-y-1 hover:-rotate-[3deg]">
+                <span aria-hidden className="tape -top-3 left-1/2 -translate-x-1/2 rotate-[3deg]" />
+                <div className="relative aspect-square overflow-hidden bg-mar">
+                  <Image src="/photos/diego-01-teal-headphones.jpg" alt={t.hero.portraitAlt} fill priority sizes="(min-width:1024px) 240px, 36vw" className="object-cover" />
+                </div>
+                <figcaption className="absolute inset-x-0 bottom-[6%] text-center font-serif text-[clamp(12px,1.25vw,19px)] italic text-ink/80">{t.hero.polaroid}</figcaption>
               </div>
-              <span className="absolute -right-1 top-[4%] grid size-[30%] place-items-center rounded-full bg-coral text-paper shadow-soft ring-4 ring-sand">
-                <Icon name="spark" className="size-[55%]" />
-              </span>
-            </div>
+            </figure>
 
-            {/* Delivered stat — a speech-bubble card */}
-            <div data-reveal="left" style={delay(560)} className="float-y absolute -left-[46%] top-[8%] hidden w-[clamp(180px,15vw,240px)] rounded-[26px] rounded-bl-[6px] bg-paper p-4 shadow-lift ring-1 ring-line sm:block">
-              <div className="flex items-center gap-3">
-                <span className="grid size-12 place-items-center rounded-2xl bg-mata text-sand" style={{ "--icon-accent": "rgb(255 255 255 / .22)" } as CSSProperties}>
-                  <Icon name="web" className="size-7" />
-                </span>
-                <span className="font-display text-[2.6rem] font-extrabold leading-none tracking-tight">20+</span>
+            {/* Pinned studio print */}
+            <figure data-reveal="scale" style={delay(640)} className="pointer-events-auto absolute -right-[13%] -top-[8%] z-10 hidden w-[30%] sm:block">
+              <div className="relative rotate-[6deg] rounded-[16px] bg-paper p-[6%] shadow-lift ring-1 ring-line transition duration-500 hover:rotate-[2deg]">
+                <span aria-hidden className="pin absolute -top-2 left-1/2 z-10 size-4 -translate-x-1/2 rounded-full bg-coral" />
+                <div className="relative aspect-[4/5] overflow-hidden rounded-[10px] bg-sand">
+                  <Image src="/photos/diego-06-camera-studio.jpg" alt={t.hero.cameraAlt} fill sizes="(min-width:1024px) 180px, 30vw" className="object-cover object-[60%_30%]" />
+                </div>
               </div>
-              <p className="mt-2 text-[13px] font-semibold leading-snug text-muted">{t.hero.stat}</p>
-            </div>
+            </figure>
 
-            {/* Now editing — a compact player pill */}
-            <div data-reveal="right" style={delay(680)} className="float-y-alt absolute -right-[10%] bottom-[18%] hidden items-center gap-3 rounded-full bg-paper py-2 pl-2 pr-5 shadow-lift ring-1 ring-line sm:flex">
-              <span className="grid size-11 place-items-center rounded-full bg-coral text-paper">
-                <Icon name="playSolid" className="ml-0.5 size-5" />
-              </span>
-              <span className="leading-tight">
-                <span className="block text-[10px] font-extrabold uppercase tracking-[.18em] text-muted">{t.hero.editing}</span>
-                <span className="block whitespace-nowrap text-sm font-extrabold">{t.hero.clip}</span>
-              </span>
-              <span aria-hidden className="eq ml-1 flex h-6 items-end gap-[3px]">
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <span key={i} className="w-[3px] rounded-full bg-mata" style={{ animationDelay: `${i * 120}ms` }} />
-                ))}
-              </span>
+            {/* Now-showing ticket */}
+            <div data-reveal style={delay(760)} className="pointer-events-auto absolute left-1/2 top-[calc(100%-22px)] z-20 w-[min(340px,88vw)] -translate-x-1/2 sm:bottom-[2%] sm:left-[72%] sm:top-auto sm:w-[300px] sm:translate-x-0 lg:-bottom-[10%] lg:left-auto lg:-right-[20%] lg:w-[350px]">
+              <div className="relative rounded-[24px] bg-paper/95 p-3 shadow-lift ring-1 ring-line backdrop-blur sm:p-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-mata text-paper sm:size-12" style={onAccent}>
+                    <Icon name={CAT_ICON[item.cat]} className="size-7" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center justify-between gap-2 text-[10.5px] font-extrabold uppercase tracking-[.16em] text-muted">
+                      <span className="truncate">
+                        {t.hero.showing} · {t.work.filters[item.cat]}
+                      </span>
+                      <span className="font-mono tracking-normal text-ink">
+                        {pad(now.i + 1)}/{WORK.length}
+                      </span>
+                    </p>
+                    <p key={now.i} className="ticket-title mt-0.5 truncate font-display text-[1.05rem] font-extrabold leading-tight sm:text-[1.2rem]">
+                      {item.title[lang]}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => control.current?.next()} aria-label={t.hero.next} className="mini-btn mini-btn-accent sm:hidden">
+                    <Icon name="chevronRight" className="size-4" strokeWidth={3.4} />
+                  </button>
+                </div>
+                <div className="mt-3 hidden items-center justify-between gap-2 sm:flex">
+                  <span key={now.tech + now.i} className="ticket-title inline-flex min-w-0 items-center gap-2 rounded-full bg-sand py-1 pl-1 pr-3 text-[12.5px] font-extrabold ring-1 ring-line">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-sol text-ink" style={{ "--icon-accent": "rgb(255 255 255 / .6)" } as CSSProperties}>
+                      <Icon name={TECH_ICON[now.tech]} className="size-[18px]" />
+                    </span>
+                    <span className="hidden font-bold text-muted xl:inline">{t.hero.leaves}</span>
+                    <span className="truncate">{t.hero.techniques[now.tech]}</span>
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button type="button" onClick={() => control.current?.prev()} aria-label={t.hero.prev} className="mini-btn">
+                      <Icon name="chevronLeft" className="size-4" strokeWidth={3.4} />
+                    </button>
+                    <button type="button" onClick={togglePause} aria-label={paused ? t.hero.play : t.hero.pause} aria-pressed={paused} className="mini-btn">
+                      <Icon name={paused ? "playSolid" : "pause"} className="size-4" strokeWidth={4} />
+                    </button>
+                    <button type="button" onClick={() => control.current?.next()} aria-label={t.hero.next} className="mini-btn mini-btn-accent">
+                      <Icon name="chevronRight" className="size-4" strokeWidth={3.4} />
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-line sm:mt-3">
+                  <span ref={bar} className="block h-full origin-left scale-x-0 rounded-full bg-coral" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <CalcadaoWave className="absolute inset-x-0 bottom-0 z-10 h-[74px] lg:h-[100px]" />
+      <CalcadaoWave className="absolute inset-x-0 bottom-0 z-[5] h-[74px] lg:h-[100px]" />
     </section>
   );
 }

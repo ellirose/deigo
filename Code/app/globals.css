@@ -501,3 +501,59 @@ nav {
 .drag-strip[data-dragging] * {
   pointer-events: none;
 }
+
+/* ───────────── Hero paper stage ───────────── */
+/* Layered so utilities like sm:hidden can override display */
+@layer components {
+  .mini-btn {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    background: var(--color-sand);
+    color: var(--color-ink);
+    box-shadow: inset 0 0 0 1px var(--color-line);
+    transition:
+      background 0.25s,
+      color 0.25s,
+      translate 0.25s;
+  }
+  .mini-btn:hover {
+    background: var(--color-sol);
+    translate: 0 -1px;
+  }
+  .mini-btn-accent {
+    background: var(--color-mata);
+    color: var(--color-paper);
+    box-shadow: none;
+  }
+  .mini-btn-accent:hover {
+    background: var(--color-coral);
+    color: var(--color-paper);
+  }
+}
+@keyframes ticket-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.ticket-title {
+  animation: ticket-in 0.55s var(--ease-out-soft) both;
+}
+@keyframes numeral-in {
+  from {
+    opacity: 0;
+    transform: translateY(40px) rotate(-4deg);
+  }
+}
+.numeral {
+  animation: numeral-in 1s var(--ease-out-soft) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticket-title,
+  .numeral {
+    animation: none;
+  }
+}
