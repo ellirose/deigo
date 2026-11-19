@@ -1,22 +1,25 @@
 import type { Lang } from "@/lib/i18n";
 
-/* Logo mark: an azulejo-like rounded tile, a "D" with the sun rising behind it,
-   and a Copacabana wave underneath for the "S". */
+/* Logo mark: a geometric "D" monogram coded in the colours of the Brazilian flag —
+   a green tile, a sun-yellow D, and a blue counter carrying the white "Ordem e
+   Progresso" band and a single star. Exported as path data so canvases can reuse it. */
+export const LOGO = {
+  tile: "M13 0h22a13 13 0 0 1 13 13v22a13 13 0 0 1-13 13H13A13 13 0 0 1 0 35V13A13 13 0 0 1 13 0z",
+  d: "M12 11h10.5a13 13 0 0 1 0 26H12z",
+  counter: { cx: 24, cy: 24, r: 6 },
+  band: "M18.4 23.2c3.6-1.6 7.8-1.4 11.4.7",
+  star: { cx: 26.6, cy: 27.2, r: 0.95 },
+} as const;
+
 export function LogoMark({ className = "size-12", title }: { className?: string; title?: string }) {
   return (
     <svg viewBox="0 0 48 48" className={className} role={title ? "img" : undefined} aria-hidden={title ? undefined : true}>
       {title ? <title>{title}</title> : null}
-      <rect width="48" height="48" rx="14" fill="var(--color-mata)" />
-      <circle cx="33.5" cy="14.5" r="7.5" fill="var(--color-sol)" />
-      <path d="M11.5 10.5h10a13.25 13.25 0 0 1 0 26.5h-10z" fill="var(--color-sand)" />
-      <path d="M17 16h4.4a7.75 7.75 0 0 1 0 15.5H17z" fill="var(--color-mata)" />
-      <path
-        d="M6 41.5c3.4-2.8 6.8-2.8 10.2 0s6.8 2.8 10.2 0 6.8-2.8 10.2 0 3.4 2.2 5.4 1.2"
-        stroke="var(--color-mar)"
-        strokeWidth="3"
-        fill="none"
-        strokeLinecap="round"
-      />
+      <path d={LOGO.tile} fill="var(--color-mata)" />
+      <path d={LOGO.d} fill="var(--color-sol)" />
+      <circle {...LOGO.counter} fill="var(--color-azul)" />
+      <path d={LOGO.band} stroke="#fff" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <circle {...LOGO.star} fill="#fff" />
     </svg>
   );
 }
