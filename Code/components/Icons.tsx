@@ -195,6 +195,49 @@ const ICONS = {
       <path d="M27 25l10 10" />
     </>
   ),
+  plane: (
+    <>
+      <A><path d="M43 5L19 26l5 15 5-11z" /></A>
+      <path d="M43 5L5 21l14 5 5 15 5-11 10 5z" />
+      <path d="M19 26L43 5M29 30L43 5" />
+    </>
+  ),
+  page: (
+    <>
+      <A><path d="M24 12c5-3 12-4 18-3v28c-6-1-13 0-18 3z" /></A>
+      <path d="M24 12c-5-3-12-4-18-3v28c6-1 13 0 18 3 5-3 12-4 18-3V9c-6-1-13 0-18 3z" />
+      <path d="M24 12v28" />
+    </>
+  ),
+  tear: (
+    <>
+      <A><path d="M30 6h10v36H31l4-9-3-7 4-7-4-6z" /></A>
+      <path d="M8 6h18l-3 7 4 6-4 7 3 7-4 9H8z" />
+      <path d="M31 6h9v36h-9l4-9-3-7 4-7-4-6z" />
+    </>
+  ),
+  particles: (
+    <>
+      <A><rect x="7" y="9" width="12" height="30" rx="3" /></A>
+      <rect x="6" y="8" width="14" height="32" rx="3" />
+      <path d="M26 12h3M33 10h2M27 19h4M37 17h3M25 26h3M32 27h4M40 25h2M27 34h3M35 36h3" strokeWidth={3.2} />
+    </>
+  ),
+  strips: (
+    <>
+      <A><path d="M19 9l10 3v24l-10 3z" /></A>
+      <rect x="6" y="9" width="9" height="30" rx="2" />
+      <path d="M19 9l10 3v24l-10 3z" />
+      <rect x="33" y="9" width="9" height="30" rx="2" />
+    </>
+  ),
+  fold: (
+    <>
+      <A><path d="M28 8l12 12H28z" /></A>
+      <path d="M8 8h20l12 12v20H8z" />
+      <path d="M28 8v12h12M8 24h32" />
+    </>
+  ),
   check: <path d="M10 25l9 9 19-19" />,
   arrowRight: <path d="M8 24h32M28 12l12 12-12 12" />,
   arrowUpRight: <path d="M14 34L34 14M18 14h16v16" />,
