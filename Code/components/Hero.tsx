@@ -193,7 +193,7 @@ export default function Hero() {
                   </div>
                 </div>
                 <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-line sm:mt-3">
-                  <span ref={bar} className="block h-full origin-left scale-x-0 rounded-full bg-coral" />
+                  <span ref={bar} className="block h-full origin-left rounded-full bg-coral" style={{ transform: "scaleX(0)" }} />
                 </div>
               </div>
             </div>
