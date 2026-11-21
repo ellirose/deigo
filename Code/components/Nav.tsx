@@ -7,7 +7,7 @@ import { Icon } from "./Icons";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { Texture } from "./ui";
 
-export const NAV_IDS = ["expertise", "work", "motion", "journey", "about"] as const;
+export const NAV_IDS = ["expertise", "work", "motion", "studio", "journey", "about"] as const;
 
 export default function Nav() {
   const { t } = useI18n();
@@ -68,7 +68,7 @@ export default function Nav() {
       >
         <a href="#top" aria-label={t.nav.home} className="group flex items-center gap-3 rounded-full pr-3">
           <LogoMark className="size-12 transition-transform duration-500 group-hover:-rotate-6 group-hover:scale-105" />
-          <Wordmark role={t.nav.role} className="hidden min-[380px]:block" />
+          <Wordmark role={t.nav.role} className="hidden min-[380px]:block lg:hidden xl:block" />
         </a>
 
         <ul className="hidden items-center gap-1 lg:flex">

@@ -8,6 +8,7 @@ import Marquee from "@/components/Marquee";
 import Motion from "@/components/Motion";
 import Nav from "@/components/Nav";
 import Process from "@/components/Process";
+import Studio from "@/components/Studio";
 import Work from "@/components/Work";
 
 export default function Page() {
@@ -20,6 +21,7 @@ export default function Page() {
         <Expertise />
         <Work />
         <Motion />
+        <Studio />
         <Impact />
         <Journey />
         <Process />

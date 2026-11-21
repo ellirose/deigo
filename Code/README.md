@@ -15,18 +15,22 @@ npm run build && npm start   # production
 | Path | What it holds |
 |---|---|
 | `app/` | Layout (fonts, metadata), page composition, global styles and design tokens (`globals.css`), favicon |
-| `components/` | One file per section (Hero, Expertise, Work, Motion, Impact, Journey, Process, About, Footer) plus Nav, LanguageSwitcher, icons, logo and flags |
-| `components/canvas/` | Canvas pieces: `CalcadaoWave` (Copacabana wave band), `EditTimeline` (video timeline synced to the reel), `CareerGlobe` (3D dot globe) |
+| `components/` | One file per section (Hero, Expertise, Work, Motion, Studio, Impact, Journey, Process, About, Footer) plus Intro, Nav, LanguageSwitcher, icons, logo and flags |
+| `components/canvas/` | Canvas pieces: `CalcadaoWave` (Copacabana wave band), `EditTimeline` (video timeline synced to the reel), `CareerGlobe` (3D dot globe), `PaperStage` (hero print transitions), `Ambient` (ambilight glow for the studio screen) |
 | `lib/i18n.ts` | Every piece of copy in `en`, `pt`, `es` |
 | `lib/work.ts` | Project manifest: image paths, sizes, category and localized titles |
+| `lib/studio.ts` | AI ad-film manifest: clip ids, sizes, durations, category and localized titles |
 | `public/work`, `public/photos` | Portfolio images and portraits (copied from `../docs`) |
-| `public/media`, `public/textures` | Stock video loops and surface textures |
+| `public/studio` | Client AI ad films (from `../docs/videos`): 1280px main file, `-preview` hover loop and poster per clip |
+| `public/media`, `public/textures` | Showreel cut from the client films (`reel-studio`), stock video loops and surface textures |
 
 To add a project: drop the image into `public/work/<category>/` and add one `W(...)` line in `lib/work.ts`.
+To add a film: put `<id>.mp4`, `<id>-preview.mp4` and `<id>.jpg` in `public/studio/` and add one `F(...)` line in `lib/studio.ts`.
 
 ## Media credits
 
-- Video loops (`public/media`): [Mixkit](https://mixkit.co) — Mixkit Stock Video Free License (clips 7060, 44378, 2091), trimmed and re-encoded.
+- Stock video loops (`hero-cove`, `surf-texture` in `public/media`): [Mixkit](https://mixkit.co) — Mixkit Stock Video Free License, trimmed and re-encoded.
+- Ad films (`public/studio`, `reel-studio`): Diego Silveira’s own client work.
 - Textures (`public/textures`), all via Wikimedia Commons:
   - `plaster.jpg` — "White textured coat finish clean seamless building wall texture", Sisters.seamless, CC0
   - `linen.jpg` — "ClothPack16", SpaceToast, public domain

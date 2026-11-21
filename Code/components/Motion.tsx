@@ -91,8 +91,8 @@ export default function Motion() {
         <div data-reveal="scale" style={delay(120)} className="lg:col-span-8">
           <div className="rounded-[36px] bg-paper p-3 shadow-lift ring-1 ring-ink/5 sm:p-4">
             <div className="relative aspect-video overflow-hidden rounded-[26px] bg-ink/10">
-              <video ref={video} className="h-full w-full object-cover" autoPlay muted loop playsInline poster="/media/reel-beach.jpg" preload="metadata">
-                <source src="/media/reel-beach.mp4" type="video/mp4" />
+              <video ref={video} className="h-full w-full object-cover" autoPlay muted loop playsInline poster="/media/reel-studio.jpg" preload="metadata">
+                <source src="/media/reel-studio.mp4" type="video/mp4" />
               </video>
               {/* viewfinder */}
               <div aria-hidden className="pointer-events-none absolute inset-4 sm:inset-6">
@@ -109,7 +109,7 @@ export default function Motion() {
                 REC
                 <span ref={timecode} className="tabular-nums">00:00:00:00</span>
               </div>
-              <span className="absolute right-6 top-6 hidden rounded-full bg-ink/55 px-3 py-1.5 font-mono text-xs font-bold text-paper backdrop-blur sm:right-9 sm:top-9 sm:block">HD · 24 fps</span>
+              <span className="absolute right-6 top-6 hidden rounded-full bg-ink/55 px-3 py-1.5 font-mono text-xs font-bold text-paper backdrop-blur sm:right-9 sm:top-9 sm:block">HD · 30 fps</span>
               <button
                 type="button"
                 onClick={toggle}
